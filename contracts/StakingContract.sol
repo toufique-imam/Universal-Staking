@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/interfaces/IERC20.sol";
+
 contract StakingContract is Ownable {
     // Structure to represent staking pools
     struct StakingPool {
@@ -96,10 +98,11 @@ contract StakingContract is Ownable {
 
         // Check if the user's staked balance doesn't exceed the maximum allowed
         require(stakedBalances[msg.sender][_poolId] + _amount <= stakingPools[_poolId].maxStakePerWallet, "Exceeded maximum stake limit");
-
-        // Transfer staking tokens from the user to the contract
         // Make sure to approve the contract to spend the tokens beforehand
-
+        require(IERC20(stakingPools[_poolId].stakingToken).allowance(msg.sender, address(this)) >= _amount, "Please approve the contract to spend the tokens first");
+        // Transfer staking tokens from the user to the contract
+        IERC20(stakingPools[_poolId].stakingToken).transferFrom(msg.sender, address(this), _amount);
+        
         // Calculate staking fee
         uint256 stakingFee = (_amount * stakingPools[_poolId].stakingFeePercentage) / 100;
 
@@ -140,7 +143,9 @@ contract StakingContract is Ownable {
         uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
 
         // Transfer staking tokens back to the user
+        IERC20(stakingPools[_poolId].stakingToken).transfer(msg.sender, netUnstakedAmount);
         // Transfer rewards to the user
+        IERC20(stakingPools[_poolId].rewardToken).transfer(msg.sender, rewards[msg.sender][_poolId]); 
 
         // Update user's staked balance
         stakedBalances[msg.sender][_poolId] -= _amount;
@@ -150,14 +155,6 @@ contract StakingContract is Ownable {
 
         // Emit unstake event
         emit Unstaked(msg.sender, _poolId, _amount, penalty);
-    }
-
-    // Function to auto-claim rewards
-    function autoClaimRewards(uint256 _poolId) external {
-        // Auto-claim rewards logic here
-
-        // Emit reward claimed event
-        emit RewardClaimed(msg.sender, _poolId, amount);
     }
 
     // Function to check if a pool exists
