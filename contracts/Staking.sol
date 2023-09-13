@@ -4,12 +4,14 @@ pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 error Staking__TransferFailed();
 error Withdraw__TransferFailed();
 error Staking__NeedsMoreThanZero();
 
-contract Staking is ReentrancyGuard {
+contract Staking is ReentrancyGuard , Pausable, Ownable {
     IERC20 public s_stakingToken;
     IERC20 public s_rewardToken;
 
@@ -75,7 +77,7 @@ contract Staking is ReentrancyGuard {
         }
     }
 
-    function stake(uint256 amount) external updateReward(msg.sender) moreThanZero(amount) {
+    function stake(uint256 amount) external updateReward(msg.sender) moreThanZero(amount) whenNotPaused {
         // keep track of how much this user has staked
         // keep track of how much token we have total
         // transfer the tokens to this contract
@@ -90,7 +92,7 @@ contract Staking is ReentrancyGuard {
         }
     }
 
-    function withdraw(uint256 amount) external updateReward(msg.sender) moreThanZero(amount) {
+    function withdraw(uint256 amount) external updateReward(msg.sender) moreThanZero(amount) whenNotPaused {
         s_balances[msg.sender] -= amount;
         s_totalSupply -= amount;
         // emit event
@@ -100,7 +102,7 @@ contract Staking is ReentrancyGuard {
         }
     }
 
-    function claimReward() external updateReward(msg.sender) {
+    function claimReward() external updateReward(msg.sender) whenNotPaused {
         uint256 reward = s_rewards[msg.sender];
         bool success = s_rewardToken.transfer(msg.sender, reward);
         if (!success) {

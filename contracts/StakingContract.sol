@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract StakingContract is Ownable {
+contract StakingContract is Ownable , Pausable {
     // Structure to represent staking pools
     struct StakingPool {
         address stakingToken;
@@ -18,6 +19,7 @@ contract StakingContract is Ownable {
         uint8 stakingFeePercentage;
         uint8 unstakingFeePercentage;
         uint8 maxStakingFeePercentage;
+        uint256 bonusPercentage;
         uint256 maxStakePerWallet;
         bool isActive;
         uint256 penaltyPercentage;
@@ -52,7 +54,7 @@ contract StakingContract is Ownable {
         uint8 _stakingTokenDecimals,
         address _rewardToken,
         uint8 _rewardTokenDecimals,
-        uint256 _totalRewards,
+        uint256 _bonusPercentage,
         uint256 _startDate,
         uint256 _endDate,
         uint8 _stakingFeePercentage,
@@ -60,7 +62,7 @@ contract StakingContract is Ownable {
         uint8 _maxStakingFeePercentage,
         uint256 _maxStakePerWallet,
         uint256 _penaltyPercentage
-    ) external {
+    ) external whenNotPaused {
         require(_stakingFeePercentage <= 1, "Staking fee cannot exceed 1%");
         require(_unstakingFeePercentage <= 100, "Unstaking fee cannot exceed 100%");
         require(_maxStakingFeePercentage <= 1, "Max staking fee cannot exceed 1%");
@@ -71,13 +73,14 @@ contract StakingContract is Ownable {
             _stakingTokenDecimals,
             _rewardToken,
             _rewardTokenDecimals,
-            _totalRewards,
+            0,
             _startDate,
             _endDate,
             msg.sender,
             _stakingFeePercentage,
             _unstakingFeePercentage,
             _maxStakingFeePercentage,
+            _bonusPercentage,
             _maxStakePerWallet,
             true,
             _penaltyPercentage
@@ -89,7 +92,7 @@ contract StakingContract is Ownable {
     }
 
     // Function for users to stake tokens
-    function stake(uint256 _poolId, uint256 _amount) external {
+    function stake(uint256 _poolId, uint256 _amount) external whenNotPaused {
         // Check if the pool is active
         require(isActivePool[_poolId], "This pool is not active");
 
@@ -120,7 +123,7 @@ contract StakingContract is Ownable {
     }
 
     // Function for users to unstake tokens
-    function unstake(uint256 _poolId, uint256 _amount) external {
+    function unstake(uint256 _poolId, uint256 _amount) external whenNotPaused {
         // Check if the pool is active
         require(isActivePool[_poolId], "This pool is not active");
 
@@ -144,6 +147,11 @@ contract StakingContract is Ownable {
 
         // Transfer staking tokens back to the user
         IERC20(stakingPools[_poolId].stakingToken).transfer(msg.sender, netUnstakedAmount);
+        
+        //calculate rewards based on amount of time the user staked and amount staked
+        uint256 timeStaked = block.timestamp - stakingPools[_poolId].startDate;
+        uint256 timeStakedInDays = timeStaked / 86400;
+
         // Transfer rewards to the user
         IERC20(stakingPools[_poolId].rewardToken).transfer(msg.sender, rewards[msg.sender][_poolId]); 
 
