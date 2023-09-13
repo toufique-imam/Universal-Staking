@@ -4,14 +4,13 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract StakingContract is Ownable , Pausable {
+contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Structure to represent staking pools
     struct StakingPool {
-        IERC20 stakingToken;
+        address stakingToken;
         uint8 stakingTokenDecimals;
-        IERC20 rewardToken;
-        uint8 rewardTokenDecimals;
         uint256 totalRewards;
         uint256 startDate;
         uint256 endDate;
@@ -25,6 +24,7 @@ contract StakingContract is Ownable , Pausable {
         uint256 penaltyPercentage;
         uint256 rewardPerTokenStored;
     }
+    IERC20 rewardToken;
 
     // Mapping to track staking pools
     mapping(uint256 => StakingPool) public stakingPools;
@@ -41,18 +41,27 @@ contract StakingContract is Ownable , Pausable {
 
     event PoolCreated(uint256 poolId);
     event Staked(address indexed user, uint256 indexed poolId, uint256 amount);
-    event Unstaked(address indexed user, uint256 indexed poolId, uint256 amount, uint256 penalty);
-    event RewardClaimed(address indexed user, uint256 indexed poolId, uint256 amount);
+    event Unstaked(
+        address indexed user,
+        uint256 indexed poolId,
+        uint256 amount,
+        uint256 penalty
+    );
+    event RewardClaimed(
+        address indexed user,
+        uint256 indexed poolId,
+        uint256 amount
+    );
+
     // Constructor to set the contract owner
-    constructor() {
+    constructor(address _rewardToken) {
+        rewardToken = IERC20(_rewardToken);
     }
 
     // Function to create a staking pool
     function createStakingPool(
         address _stakingToken,
         uint8 _stakingTokenDecimals,
-        address _rewardToken,
-        uint8 _rewardTokenDecimals,
         uint256 _bonusPercentage,
         uint256 _startDate,
         uint256 _endDate,
@@ -63,15 +72,19 @@ contract StakingContract is Ownable , Pausable {
         uint256 _penaltyPercentage
     ) external whenNotPaused {
         require(_stakingFeePercentage <= 1, "Staking fee cannot exceed 1%");
-        require(_unstakingFeePercentage <= 100, "Unstaking fee cannot exceed 100%");
-        require(_maxStakingFeePercentage <= 1, "Max staking fee cannot exceed 1%");
+        require(
+            _unstakingFeePercentage <= 100,
+            "Unstaking fee cannot exceed 100%"
+        );
+        require(
+            _maxStakingFeePercentage <= 1,
+            "Max staking fee cannot exceed 1%"
+        );
 
         uint256 poolId = poolCount;
         stakingPools[poolId] = StakingPool(
-            IERC20(_stakingToken),
+            _stakingToken,
             _stakingTokenDecimals,
-            IERC20(_rewardToken),
-            _rewardTokenDecimals,
             0,
             _startDate,
             _endDate,
@@ -92,21 +105,40 @@ contract StakingContract is Ownable , Pausable {
     }
 
     // Function for users to stake tokens
-    function stake(uint256 _poolId, uint256 _amount) external whenNotPaused {
+    function stake(
+        uint256 _poolId,
+        uint256 _amount
+    ) external whenNotPaused nonReentrant {
         // Check if the pool is active
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.isActive, "This pool is not active");
 
         // Check if the staking period is valid
-        require(block.timestamp >= pool.startDate && block.timestamp <= pool.endDate, "Staking period is not valid");
+        require(
+            block.timestamp >= pool.startDate &&
+                block.timestamp <= pool.endDate,
+            "Staking period is not valid"
+        );
 
         // Check if the user's staked balance doesn't exceed the maximum allowed
-        require(stakedBalances[msg.sender][_poolId] + _amount <= pool.maxStakePerWallet, "Exceeded maximum stake limit");
+        require(
+            stakedBalances[msg.sender][_poolId] + _amount <=
+                pool.maxStakePerWallet,
+            "Exceeded maximum stake limit"
+        );
         // Make sure to approve the contract to spend the tokens beforehand
-        require(pool.stakingToken.allowance(msg.sender, address(this)) >= _amount, "Please approve the contract to spend the tokens first");
+        require(
+            IERC20(pool.stakingToken).allowance(msg.sender, address(this)) >=
+                _amount,
+            "Please approve the contract to spend the tokens first"
+        );
         // Transfer staking tokens from the user to the contract
-        pool.stakingToken.transferFrom(msg.sender, address(this), _amount);
-        
+        IERC20(pool.stakingToken).transferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
+
         // Calculate staking fee
         uint256 stakingFee = (_amount * pool.stakingFeePercentage) / 100;
 
@@ -124,17 +156,26 @@ contract StakingContract is Ownable , Pausable {
     }
 
     // Function for users to unstake tokens
-    function unstake(uint256 _poolId, uint256 _amount) external whenNotPaused {
+    function unstake(
+        uint256 _poolId,
+        uint256 _amount
+    ) external whenNotPaused nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
-        
+
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
 
         // Check if the user has enough staked tokens
-        require(stakedBalances[msg.sender][_poolId] >= _amount, "Insufficient staked balance");
+        require(
+            stakedBalances[msg.sender][_poolId] >= _amount,
+            "Insufficient staked balance"
+        );
 
         // Check if the staking period is valid
-        require(block.timestamp >= pool.startDate, "Unstaking is not allowed before the staking period starts");
+        require(
+            block.timestamp >= pool.startDate,
+            "Unstaking is not allowed before the staking period starts"
+        );
 
         // Calculate unstaking fee
         uint256 unstakingFee = (_amount * pool.unstakingFeePercentage) / 100;
@@ -150,13 +191,18 @@ contract StakingContract is Ownable , Pausable {
 
         // Transfer staking tokens back to the user
         IERC20(pool.stakingToken).transfer(msg.sender, netUnstakedAmount);
-        
+
         //calculate rewards based on amount of time the user staked and amount staked
-        uint256 timeStaked = block.timestamp - pool.startDate;
+        uint256 timeStaked = (pool.endDate - pool.startDate);
+        if (pool.endDate > block.timestamp)
+            timeStaked = block.timestamp - pool.startDate;
+
         uint256 timeStakedInDays = timeStaked / 86400;
+        uint256 reward = (timeStakedInDays * _amount * pool.bonusPercentage) /
+            100;
 
         // Transfer rewards to the user
-        IERC20(pool.rewardToken).transfer(msg.sender, rewards[msg.sender][_poolId]); 
+        rewardToken.transfer(msg.sender, reward);
 
         // Update user's staked balance
         stakedBalances[msg.sender][_poolId] -= _amount;
@@ -167,6 +213,7 @@ contract StakingContract is Ownable , Pausable {
         // Emit unstake event
         emit Unstaked(msg.sender, _poolId, _amount, penalty);
     }
+
     /** @dev Basis of how long it's been during the most recent snapshot/block */
     function rewardPerToken(uint256 _poolId) public view returns (uint256) {
         StakingPool memory pool = stakingPools[_poolId];
@@ -175,7 +222,9 @@ contract StakingContract is Ownable , Pausable {
         } else {
             return
                 pool.rewardPerTokenStored +
-                (((block.timestamp - pool.endDate) * pool.bonusPercentage * 1e18) / pool.totalRewards);
+                (((block.timestamp - pool.endDate) *
+                    pool.bonusPercentage *
+                    1e18) / pool.totalRewards);
         }
     }
 
@@ -186,45 +235,17 @@ contract StakingContract is Ownable , Pausable {
 
     // Function to check if a pool is active
     function poolIsActive(uint256 _poolId) external view returns (bool) {
-        return stakingPools[_poolId].isActive && block.timestamp >= stakingPools[_poolId].startDate && block.timestamp <= stakingPools[_poolId].endDate;
+        return
+            stakingPools[_poolId].isActive &&
+            block.timestamp >= stakingPools[_poolId].startDate &&
+            block.timestamp <= stakingPools[_poolId].endDate;
     }
 
     // Function to get pool information
-    function getPoolInfo(uint256 _poolId)
-        external
-        view
-        returns (
-            address,
-            uint8,
-            address,
-            uint8,
-            uint256,
-            uint256,
-            uint256,
-            address,
-            uint8,
-            uint8,
-            uint8,
-            uint256,
-            bool
-        )
-    {
-        StakingPool memory pool = stakingPools[_poolId];
-        return (
-            pool.stakingToken,
-            pool.stakingTokenDecimals,
-            pool.rewardToken,
-            pool.rewardTokenDecimals,
-            pool.totalRewards,
-            pool.startDate,
-            pool.endDate,
-            pool.creator,
-            pool.stakingFeePercentage,
-            pool.unstakingFeePercentage,
-            pool.maxStakingFeePercentage,
-            pool.maxStakePerWallet,
-            pool.isActive
-        );
+    function getPoolInfo(
+        uint256 _poolId
+    ) external view returns (StakingPool memory) {
+        return stakingPools[_poolId];
     }
 
     // Function to set a pool as inactive (emergency shutdown)
@@ -233,5 +254,17 @@ contract StakingContract is Ownable , Pausable {
         require(pool.isActive != status, "Pool is already in the same state");
         pool.isActive = status;
     }
-    
+
+    function withdraw(address token) external onlyOwner whenPaused {
+        IERC20(token).transfer(
+            msg.sender,
+            IERC20(token).balanceOf(address(this))
+        );
+    }
+    function withdrawRewardToken() external onlyOwner whenPaused {
+        rewardToken.transfer(
+            msg.sender,
+            rewardToken.balanceOf(address(this))
+        );
+    }
 }
