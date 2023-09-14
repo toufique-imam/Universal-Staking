@@ -3,6 +3,7 @@ import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
 import { poolExists, poolIsActive, getPoolInfo } from '@/utils/stake/user';
+import { Typography } from '@mui/material';
 
 export default function PoolInfoView() {
     const [poolId, setPoolId] = React.useState('');
@@ -23,7 +24,8 @@ export default function PoolInfoView() {
     const handlePoolInfo = async () => {
         setLoading(true);
         const res = await getPoolInfo(BigInt(poolId));
-        setResult(JSON.stringify(res));
+        const _res = (JSON.stringify(res, (key, value) => typeof value === 'bigint' ? value.toString() : value));
+        toast.info(_res);
         setLoading(false);
     }
     return (
@@ -50,11 +52,10 @@ export default function PoolInfoView() {
             <Button variant="outlined" onClick={handlePoolInfo}>
                 Pool info
             </Button>
-            {
-                loading ? <div>Loading...</div> : <div>
-                    {result}
-                </div>
-            }
+            <Typography variant="body1" component="h6" color={"black"}>
+                {loading ? 'loading' : result}
+            </Typography>
+
         </div>
     );
 }

@@ -43,8 +43,8 @@ export default function MintTokenView() {
             <TextField
                 autoFocus
                 margin="dense"
-                id="stake_amount"
-                label="Stake Amount"
+                id="mint_amount"
+                label="mint Amount"
                 type="number"
                 fullWidth
                 value={tokenAmount}
@@ -52,7 +52,7 @@ export default function MintTokenView() {
                 variant="standard"
             />
             <Button variant="outlined" onClick={handleMint}>
-                Stake
+                Mint
             </Button>
 
         </div>

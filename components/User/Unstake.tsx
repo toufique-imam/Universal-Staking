@@ -42,7 +42,7 @@ export default function UnstakeView() {
                 variant="standard"
             />
             <Button variant="outlined" onClick={handleUnstake}>
-                Stake
+                Un Stake
             </Button>
 
         </div>
