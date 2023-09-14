@@ -2,23 +2,23 @@ import * as React from 'react';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
-import { withdraw } from '@/utils/stake/admin';
+import { transferOwnership } from '@/utils/stake/admin';
 import { Address, isAddress } from 'viem';
 
-export default function WithdrawTokenView() {
-    const [withdrawAddress, setWithdrawAddress] = React.useState('');
-    const handleWithdrawToken = async () => {
-        if(isAddress(withdrawAddress) == false){
+export default function TransferOwnershipView() {
+    const [address, setAddress] = React.useState('');
+    const handleTransferOwnership = async () => {
+        if (isAddress(address) == false) {
             toast.error('invalid address');
             return;
         }
-        toast.info('Withdraw token');
-        const res = await withdraw(withdrawAddress as Address);
+        toast.info('transfer ownership');
+        const res = await transferOwnership(address as Address);
         if (res == -1) {
-            toast.error('withdraw failed');
+            toast.error('transfer ownership failed');
             return;
         }
-        toast.info('withdraw finished');   
+        toast.info('transfer ownership finished');
     }
     return (
         <div>
@@ -29,12 +29,12 @@ export default function WithdrawTokenView() {
                 label="Wallet Address"
                 type="text"
                 fullWidth
-                value={withdrawAddress}
-                onChange={(e) => setWithdrawAddress(e.target.value)}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
                 variant="standard"
             />
-            <Button variant="outlined" onClick={handleWithdrawToken}>
-                Withdraw token
+            <Button variant="outlined" onClick={handleTransferOwnership}>
+                Transfer Ownership
             </Button>
 
         </div>

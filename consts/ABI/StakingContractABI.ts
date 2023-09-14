@@ -313,6 +313,13 @@ export const StakingContractABI = [
     },
     {
         inputs: [],
+        name: "pause",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [],
         name: "paused",
         outputs: [
             {
@@ -578,6 +585,13 @@ export const StakingContractABI = [
             }
         ],
         name: "transferOwnership",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [],
+        name: "unpause",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"

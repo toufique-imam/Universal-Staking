@@ -22,7 +22,8 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint256 maxStakePerWallet;
         bool isActive;
         uint256 penaltyPercentage;
-        uint256 rewardPerTokenStored;
+        // uint256 rewardPerTokenStored;
+        // uint256 lastUpdateTime;
     }
     IERC20 rewardToken;
 
@@ -70,7 +71,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint8 _maxStakingFeePercentage,
         uint256 _maxStakePerWallet,
         uint256 _penaltyPercentage
-    ) external whenNotPaused {
+    ) external whenNotPaused nonReentrant {
         require(_stakingFeePercentage <= 1, "Staking fee cannot exceed 1%");
         require(
             _unstakingFeePercentage <= 100,
@@ -95,8 +96,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             _bonusPercentage,
             _maxStakePerWallet,
             true,
-            _penaltyPercentage,
-            0
+            _penaltyPercentage
         );
         // isActivePool[poolId] = true;
         poolCount++;
@@ -198,7 +198,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             timeStaked = block.timestamp - pool.startDate;
 
         uint256 timeStakedInDays = timeStaked / 86400;
-        uint256 reward = (timeStakedInDays * _amount * pool.bonusPercentage) /
+        uint256 reward = (timeStakedInDays * netUnstakedAmount * pool.bonusPercentage) /
             100;
 
         // Transfer rewards to the user
@@ -215,18 +215,18 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     }
 
     /** @dev Basis of how long it's been during the most recent snapshot/block */
-    function rewardPerToken(uint256 _poolId) public view returns (uint256) {
-        StakingPool memory pool = stakingPools[_poolId];
-        if (pool.totalRewards == 0) {
-            return 0;
-        } else {
-            return
-                pool.rewardPerTokenStored +
-                (((block.timestamp - pool.endDate) *
-                    pool.bonusPercentage *
-                    1e18) / pool.totalRewards);
-        }
-    }
+    // function rewardPerToken(uint256 _poolId) public view returns (uint256) {
+    //     StakingPool memory pool = stakingPools[_poolId];
+    //     if (pool.totalRewards == 0) {
+    //         return 0;
+    //     } else {
+    //         return
+    //             pool.rewardPerTokenStored +
+    //             (((block.timestamp - pool.endDate) *
+    //                 pool.bonusPercentage *
+    //                 1e18) / pool.totalRewards);
+    //     }
+    // }
 
     // Function to check if a pool exists
     function poolExists(uint256 _poolId) external view returns (bool) {
@@ -266,5 +266,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             msg.sender,
             rewardToken.balanceOf(address(this))
         );
+    }
+    function pause() external onlyOwner {
+        _pause();
+    }
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
