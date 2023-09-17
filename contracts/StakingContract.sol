@@ -3,14 +3,18 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Structure to represent staking pools
     struct StakingPool {
-        address stakingToken;
+        address stakingAddress;
         uint8 stakingTokenDecimals;
+        address rewardTokenAddress;
+        uint8 rewardTokenDecimals;
+        uint256 rewardTokenAmount;
         uint256 totalRewards;
         uint256 startDate;
         uint256 endDate;
@@ -22,10 +26,8 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint256 maxStakePerWallet;
         bool isActive;
         uint256 penaltyPercentage;
-        // uint256 rewardPerTokenStored;
-        // uint256 lastUpdateTime;
+        bool isNFT;
     }
-    IERC20 rewardToken;
 
     // Mapping to track staking pools
     mapping(uint256 => StakingPool) public stakingPools;
@@ -55,14 +57,14 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     );
 
     // Constructor to set the contract owner
-    constructor(address _rewardToken) {
-        rewardToken = IERC20(_rewardToken);
-    }
+    constructor() {}
 
     // Function to create a staking pool
     function createStakingPool(
-        address _stakingToken,
+        address _stakingAddress,
         uint8 _stakingTokenDecimals,
+        address _rewardTokenAddress,
+        uint8 rewardTokenDecimals,
         uint256 _bonusPercentage,
         uint256 _startDate,
         uint256 _endDate,
@@ -70,7 +72,8 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint8 _unstakingFeePercentage,
         uint8 _maxStakingFeePercentage,
         uint256 _maxStakePerWallet,
-        uint256 _penaltyPercentage
+        uint256 _penaltyPercentage,
+        bool isNFT
     ) external whenNotPaused nonReentrant {
         require(_stakingFeePercentage <= 1, "Staking fee cannot exceed 1%");
         require(
@@ -84,8 +87,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
 
         uint256 poolId = poolCount;
         stakingPools[poolId] = StakingPool(
-            _stakingToken,
+            _stakingAddress,
             _stakingTokenDecimals,
+            _rewardTokenAddress,
+            rewardTokenDecimals,
+            0,
             0,
             _startDate,
             _endDate,
@@ -96,12 +102,40 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             _bonusPercentage,
             _maxStakePerWallet,
             true,
-            _penaltyPercentage
+            _penaltyPercentage,
+            isNFT
         );
         // isActivePool[poolId] = true;
         poolCount++;
 
         emit PoolCreated(poolId);
+    }
+
+    function receiveToken(uint256 _poolId, uint256 amount) public nonReentrant {
+        StakingPool storage pool = stakingPools[_poolId];
+        require(pool.isActive, "This pool is not active");
+
+        // Check if the staking period is valid
+        require(
+            block.timestamp >= pool.startDate &&
+                block.timestamp <= pool.endDate,
+            "Staking period is not valid"
+        );
+        // Make sure to approve the contract to spend the tokens beforehand
+        require(
+            IERC20(pool.rewardTokenAddress).allowance(
+                msg.sender,
+                address(this)
+            ) >= amount,
+            "Please approve the contract to spend the tokens first"
+        );
+        // Transfer staking tokens from the user to the contract
+        IERC20(pool.rewardTokenAddress).transferFrom(
+            msg.sender,
+            address(this),
+            amount
+        );
+        pool.rewardTokenAmount += amount;
     }
 
     // Function for users to stake tokens
@@ -127,17 +161,34 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             "Exceeded maximum stake limit"
         );
         // Make sure to approve the contract to spend the tokens beforehand
-        require(
-            IERC20(pool.stakingToken).allowance(msg.sender, address(this)) >=
-                _amount,
-            "Please approve the contract to spend the tokens first"
-        );
+        if (pool.isNFT) {
+            require(
+                IERC721(pool.stakingAddress).getApproved(_amount) == address(this),
+                "Please approve the contract to spend the tokens first"
+            );
+        } else {
+            require(
+                IERC20(pool.stakingAddress).allowance(
+                    msg.sender,
+                    address(this)
+                ) >= _amount,
+                "Please approve the contract to spend the tokens first"
+            );
+        }
         // Transfer staking tokens from the user to the contract
-        IERC20(pool.stakingToken).transferFrom(
-            msg.sender,
-            address(this),
-            _amount
-        );
+        if(pool.isNFT){
+            IERC721(pool.stakingAddress).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _amount
+            );
+        } else {
+            IERC20(pool.stakingAddress).transferFrom(
+                msg.sender,
+                address(this),
+                _amount
+            );
+        }
 
         // Calculate staking fee
         uint256 stakingFee = (_amount * pool.stakingFeePercentage) / 100;
@@ -190,7 +241,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
 
         // Transfer staking tokens back to the user
-        IERC20(pool.stakingToken).transfer(msg.sender, netUnstakedAmount);
+        IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
 
         //calculate rewards based on amount of time the user staked and amount staked
         uint256 timeStaked = (pool.endDate - pool.startDate);
@@ -198,11 +249,12 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             timeStaked = block.timestamp - pool.startDate;
 
         uint256 timeStakedInDays = timeStaked / 86400;
-        uint256 reward = (timeStakedInDays * netUnstakedAmount * pool.bonusPercentage) /
-            100;
+        uint256 reward = (timeStakedInDays *
+            netUnstakedAmount *
+            pool.bonusPercentage) / 100;
 
         // Transfer rewards to the user
-        rewardToken.transfer(msg.sender, reward);
+        IERC20(pool.rewardTokenAddress).transfer(msg.sender, reward);
 
         // Update user's staked balance
         stakedBalances[msg.sender][_poolId] -= _amount;
@@ -261,15 +313,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             IERC20(token).balanceOf(address(this))
         );
     }
-    function withdrawRewardToken() external onlyOwner whenPaused {
-        rewardToken.transfer(
-            msg.sender,
-            rewardToken.balanceOf(address(this))
-        );
-    }
+
     function pause() external onlyOwner {
         _pause();
     }
+
     function unpause() external onlyOwner {
         _unpause();
     }
