@@ -19,7 +19,7 @@ contract NFTStaking is Ownable, IERC721Receiver , ReentrancyGuard {
         uint256 startDate;
         uint256 endDate;
         uint256 rewardPerDay;
-        uint256 stakingFee;
+        uint256 stakingFee; 
         uint256 unstakingFee;
         uint256 maxStakePerWallet;
         uint256 penaltyPercentage;

@@ -11,9 +11,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Structure to represent staking pools
     struct StakingPool {
         address stakingAddress;
-        uint8 stakingTokenDecimals;
         address rewardTokenAddress;
-        uint8 rewardTokenDecimals;
         uint256 rewardTokenAmount;
         uint256 totalRewards;
         uint256 startDate;
@@ -28,9 +26,19 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint256 penaltyPercentage;
         bool isNFT;
     }
+    struct Stake {
+        uint256 poolId;
+        uint24 tokenId;
+        uint48 timestamp;
+        address owner;
+    }
 
     // Mapping to track staking pools
     mapping(uint256 => StakingPool) public stakingPools;
+    
+    //mapping nft token id to stake
+    mapping(address => mapping(uint256 => Stake)) public vaults;
+
     uint256 public poolCount;
 
     // Mapping to track user staked balances
@@ -44,6 +52,8 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
 
     event PoolCreated(uint256 poolId);
     event Staked(address indexed user, uint256 indexed poolId, uint256 amount);
+    
+    event NFTStaked(address owner, uint256 indexed poolId, uint256[] tokenIds, uint256 value);
     event Unstaked(
         address indexed user,
         uint256 indexed poolId,
@@ -62,9 +72,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Function to create a staking pool
     function createStakingPool(
         address _stakingAddress,
-        uint8 _stakingTokenDecimals,
         address _rewardTokenAddress,
-        uint8 rewardTokenDecimals,
         uint256 _bonusPercentage,
         uint256 _startDate,
         uint256 _endDate,
@@ -88,9 +96,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         uint256 poolId = poolCount;
         stakingPools[poolId] = StakingPool(
             _stakingAddress,
-            _stakingTokenDecimals,
             _rewardTokenAddress,
-            rewardTokenDecimals,
             0,
             0,
             _startDate,
@@ -139,14 +145,14 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     }
 
     // Function for users to stake tokens
-    function stake(
+    function stakeToken(
         uint256 _poolId,
         uint256 _amount
     ) external whenNotPaused nonReentrant {
         // Check if the pool is active
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.isActive, "This pool is not active");
-
+        require(!pool.isNFT, "This function is for Tokens only");
         // Check if the staking period is valid
         require(
             block.timestamp >= pool.startDate &&
@@ -161,34 +167,20 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             "Exceeded maximum stake limit"
         );
         // Make sure to approve the contract to spend the tokens beforehand
-        if (pool.isNFT) {
-            require(
-                IERC721(pool.stakingAddress).getApproved(_amount) == address(this),
-                "Please approve the contract to spend the tokens first"
-            );
-        } else {
-            require(
-                IERC20(pool.stakingAddress).allowance(
-                    msg.sender,
-                    address(this)
-                ) >= _amount,
-                "Please approve the contract to spend the tokens first"
-            );
-        }
+
+        require(
+            IERC20(pool.stakingAddress).allowance(msg.sender, address(this)) >=
+                _amount,
+            "Please approve the contract to spend the tokens first"
+        );
+
         // Transfer staking tokens from the user to the contract
-        if(pool.isNFT){
-            IERC721(pool.stakingAddress).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _amount
-            );
-        } else {
-            IERC20(pool.stakingAddress).transferFrom(
-                msg.sender,
-                address(this),
-                _amount
-            );
-        }
+
+        IERC20(pool.stakingAddress).transferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
 
         // Calculate staking fee
         uint256 stakingFee = (_amount * pool.stakingFeePercentage) / 100;
@@ -204,6 +196,84 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
 
         // Emit stake event
         emit Staked(msg.sender, _poolId, _amount);
+    }
+
+    // Function for users to stake tokens
+    function stakeNFT(
+        uint256 _poolId,
+        uint256[] calldata tokenIds
+    ) external whenNotPaused nonReentrant {
+        // Check if the pool is active
+        StakingPool storage pool = stakingPools[_poolId];
+        require(pool.isActive, "This pool is not active");
+        require(pool.isNFT, "This function is for NFT stake only");
+        // Check if the staking period is valid
+        require(
+            block.timestamp >= pool.startDate &&
+                block.timestamp <= pool.endDate,
+            "Staking period is not valid"
+        );
+
+        // Check if the user's staked balance doesn't exceed the maximum allowed
+        require(
+            stakedBalances[msg.sender][_poolId] + tokenIds.length <=
+                pool.maxStakePerWallet,
+            "Exceeded maximum stake limit"
+        );
+        
+        IERC721 nft = IERC721(pool.stakingAddress);
+        // Make sure to approve the contract to spend the tokens beforehand
+        require(
+           nft.isApprovedForAll(
+                msg.sender,
+                address(this)
+            ),
+            "not approved"
+        );
+        
+        uint256 tokenId;
+        pool.totalRewards += tokenIds.length;
+
+        for (uint i = 0; i < tokenIds.length; i++) {
+            tokenId = tokenIds[i];
+            require(nft.ownerOf(tokenId) == msg.sender, "not your token");
+            require(vaults[pool.stakingAddress][tokenId].tokenId == 0, "already staked");
+
+            nft.transferFrom(msg.sender, address(this), tokenId);
+            emit NFTStaked(msg.sender, _poolId, tokenId, block.timestamp);
+
+            vaults[pool.stakingAddress][tokenId] = Stake({
+                poolId: _poolId,
+                tokenId: uint24(tokenId),
+                timestamp: uint48(block.timestamp),
+                owner: msg.sender
+            });
+            stakedBalances[msg.sender][_poolId]++;
+
+            // totalUserStakes[msg.sender]++;
+        }
+        // Transfer staking tokens from the user to the contract
+        // IERC721(pool.stakingAddress).safeTransferFrom(
+        //     msg.sender,
+        //     address(this),
+        //     _amount
+        // );
+
+
+        // Calculate staking fee
+        // uint256 stakingFee = (_amount * pool.stakingFeePercentage) / 100;
+
+        // Calculate net staked amount
+        // uint256 netStakedAmount = _amount - stakingFee;
+
+        // Update user's staked balance
+        // stakedBalances[msg.sender][_poolId] += netStakedAmount;
+
+        // Update total staked tokens in the pool
+        pool.totalRewards += tokenIds.length;
+
+        // Emit stake event
+        emit NFTStaked(msg.sender, _poolId, tokenIds, value);
     }
 
     // Function for users to unstake tokens
