@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract NFTStaking is Ownable, IERC721Receiver {
+contract NFTStaking is Ownable, IERC721Receiver , ReentrancyGuard {
     uint256 public totalStaked;
 
     struct StakePool {
@@ -43,7 +44,7 @@ contract NFTStaking is Ownable, IERC721Receiver {
     // maps poolId to stake pool
     mapping(uint256 => StakePool) public pools;
     uint256 public poolCount;
-
+    uint256 public poolCreationFee; 
     constructor() {}
 
     function createStakingPool(
@@ -56,7 +57,7 @@ contract NFTStaking is Ownable, IERC721Receiver {
         uint256 _unstakingFee,
         uint256 _maxStakePerWallet,
         uint256 _penaltyPercentage
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         require(_endDate > _startDate, "end date must be after start date");
         require(_endDate > block.timestamp, "end date must be in the future");
         require(_stakingFee < 100, "staking fee must be less than 100%");
