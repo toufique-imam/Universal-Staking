@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
@@ -9,24 +10,21 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Structure to represent staking pools
+
     struct StakingPool {
         address stakingAddress;
-        uint8 stakingTokenDecimals;
         address rewardTokenAddress;
-        uint8 rewardTokenDecimals;
         uint256 rewardTokenAmount;
         uint256 totalRewards;
         uint256 startDate;
         uint256 endDate;
         address creator;
-        uint8 stakingFeePercentage;
+        uint256 stakingFee;
         uint8 unstakingFeePercentage;
-        uint8 maxStakingFeePercentage;
         uint256 bonusPercentage;
         uint256 maxStakePerWallet;
         bool isActive;
         uint256 penaltyPercentage;
-        bool isNFT;
     }
 
     // Mapping to track staking pools
@@ -34,7 +32,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     uint256 public poolCount;
 
     // Mapping to track user staked balances
-    mapping(address => mapping(uint256 => uint256)) public stakedBalances;
+    mapping(address => mapping(uint256 => uint256)) public stakedNFTs;
 
     // Mapping to track user rewards
     mapping(address => mapping(uint256 => uint256)) public rewards;
@@ -43,11 +41,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     mapping(address => mapping(uint256 => uint256)) public unstakedBalances;
 
     event PoolCreated(uint256 poolId);
-    event Staked(address indexed user, uint256 indexed poolId, uint256 amount);
+    event Staked(address indexed user, uint256 indexed poolId, uint256 tokenID);
     event Unstaked(
         address indexed user,
         uint256 indexed poolId,
-        uint256 amount,
+        uint256 tokenID,
         uint256 penalty
     );
     event RewardClaimed(
@@ -62,53 +60,72 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Function to create a staking pool
     function createStakingPool(
         address _stakingAddress,
-        uint8 _stakingTokenDecimals,
         address _rewardTokenAddress,
-        uint8 rewardTokenDecimals,
-        uint256 _bonusPercentage,
         uint256 _startDate,
         uint256 _endDate,
-        uint8 _stakingFeePercentage,
+        uint256 _stakingFee,
         uint8 _unstakingFeePercentage,
-        uint8 _maxStakingFeePercentage,
-        uint256 _maxStakePerWallet,
-        uint256 _penaltyPercentage,
-        bool isNFT
-    ) external whenNotPaused nonReentrant {
-        require(_stakingFeePercentage <= 1, "Staking fee cannot exceed 1%");
+        uint256 _bonusPercentage,
+        uint256 _maxStakePerWallet
+    ) external onlyOwner {
+        // Check if the staking address is a contract
         require(
-            _unstakingFeePercentage <= 100,
-            "Unstaking fee cannot exceed 100%"
-        );
-        require(
-            _maxStakingFeePercentage <= 1,
-            "Max staking fee cannot exceed 1%"
+            Address.isContract(_stakingAddress),
+            "Staking address should be a contract"
         );
 
-        uint256 poolId = poolCount;
-        stakingPools[poolId] = StakingPool(
+        // Check if the reward token address is a contract
+        require(
+            Address.isContract(_rewardTokenAddress),
+            "Reward token address should be a contract"
+        );
+
+        // Check if the staking fee is valid
+        require(
+            _stakingFee >= 0 && _stakingFee <= 100,
+            "Staking fee should be between 0 and 100"
+        );
+
+        // Check if the unstaking fee is valid
+        require(
+            _unstakingFeePercentage >= 0 && _unstakingFeePercentage <= 100,
+            "Unstaking fee should be between 0 and 100"
+        );
+
+        // Check if the bonus percentage is valid
+        require(
+            _bonusPercentage >= 0 && _bonusPercentage <= 100,
+            "Bonus percentage should be between 0 and 100"
+        );
+
+        // Check if the maximum stake per wallet is valid
+        require(
+            _maxStakePerWallet > 0,
+            "Maximum stake per wallet should be greater than 0"
+        );
+
+        // Check if the staking period is valid
+        require(
+            _startDate < _endDate,
+            "Staking period should be greater than 0"
+        );
+        poolCount++;
+        stakingPools[poolCount] = StakingPool(
             _stakingAddress,
-            _stakingTokenDecimals,
             _rewardTokenAddress,
-            rewardTokenDecimals,
             0,
             0,
             _startDate,
             _endDate,
             msg.sender,
-            _stakingFeePercentage,
+            _stakingFee,
             _unstakingFeePercentage,
-            _maxStakingFeePercentage,
             _bonusPercentage,
             _maxStakePerWallet,
             true,
-            _penaltyPercentage,
-            isNFT
+            0
         );
-        // isActivePool[poolId] = true;
-        poolCount++;
-
-        emit PoolCreated(poolId);
+        emit PoolCreated(poolCount);
     }
 
     function receiveToken(uint256 _poolId, uint256 amount) public nonReentrant {
@@ -141,7 +158,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     // Function for users to stake tokens
     function stake(
         uint256 _poolId,
-        uint256 _amount
+        uint256 _tokenID
     ) external whenNotPaused nonReentrant {
         // Check if the pool is active
         StakingPool storage pool = stakingPools[_poolId];
@@ -153,74 +170,43 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
                 block.timestamp <= pool.endDate,
             "Staking period is not valid"
         );
-
-        // Check if the user's staked balance doesn't exceed the maximum allowed
+        //check reward token amount
+        require(pool.rewardTokenAmount > 0, "No rewards left");
+        // Check if the user has enough staked tokens
         require(
-            stakedBalances[msg.sender][_poolId] + _amount <=
-                pool.maxStakePerWallet,
-            "Exceeded maximum stake limit"
+            stakedNFTs[msg.sender][_poolId] < pool.maxStakePerWallet,
+            "You have already staked the maximum amount"
         );
-        // Make sure to approve the contract to spend the tokens beforehand
-        if (pool.isNFT) {
-            require(
-                IERC721(pool.stakingAddress).getApproved(_amount) == address(this),
-                "Please approve the contract to spend the tokens first"
-            );
-        } else {
-            require(
-                IERC20(pool.stakingAddress).allowance(
-                    msg.sender,
-                    address(this)
-                ) >= _amount,
-                "Please approve the contract to spend the tokens first"
-            );
-        }
+        require(
+            IERC721(pool.stakingAddress).getApproved(_tokenID) == address(this),
+            "Please approve the contract to spend the tokens first"
+        );
         // Transfer staking tokens from the user to the contract
-        if(pool.isNFT){
-            IERC721(pool.stakingAddress).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _amount
-            );
-        } else {
-            IERC20(pool.stakingAddress).transferFrom(
-                msg.sender,
-                address(this),
-                _amount
-            );
-        }
-
-        // Calculate staking fee
-        uint256 stakingFee = (_amount * pool.stakingFeePercentage) / 100;
-
-        // Calculate net staked amount
-        uint256 netStakedAmount = _amount - stakingFee;
-
+        IERC721(pool.stakingAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _tokenID
+        );
         // Update user's staked balance
-        stakedBalances[msg.sender][_poolId] += netStakedAmount;
-
+        stakedNFTs[msg.sender][_poolId] += 1;
         // Update total staked tokens in the pool
-        pool.totalRewards += netStakedAmount;
-
+        pool.totalRewards += 1;
         // Emit stake event
-        emit Staked(msg.sender, _poolId, _amount);
+        emit Staked(msg.sender, _poolId, _tokenID);
     }
 
     // Function for users to unstake tokens
     function unstake(
         uint256 _poolId,
-        uint256 _amount
+        uint256 _tokenID
     ) external whenNotPaused nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
 
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
+        //check reward token amount
+        require(pool.rewardTokenAmount > 0, "No rewards left");
 
-        // Check if the user has enough staked tokens
-        require(
-            stakedBalances[msg.sender][_poolId] >= _amount,
-            "Insufficient staked balance"
-        );
 
         // Check if the staking period is valid
         require(
@@ -229,56 +215,41 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         );
 
         // Calculate unstaking fee
-        uint256 unstakingFee = (_amount * pool.unstakingFeePercentage) / 100;
 
-        // Calculate penalty for early unstaking
-        uint256 penalty = 0;
-        if (block.timestamp < pool.endDate) {
-            penalty = (_amount * pool.penaltyPercentage) / 100;
-        }
+        // // Calculate penalty for early unstaking
+        // uint256 penalty = 0;
+        // if (block.timestamp < pool.endDate) {
+        //     penalty = (_amount * pool.penaltyPercentage) / 100;
+        // }
 
-        // Calculate net unstaked amount
-        uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
+        // // Calculate net unstaked amount
+        // uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
 
-        // Transfer staking tokens back to the user
-        IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
+        // // Transfer staking tokens back to the user
+        // IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
 
-        //calculate rewards based on amount of time the user staked and amount staked
-        uint256 timeStaked = (pool.endDate - pool.startDate);
-        if (pool.endDate > block.timestamp)
-            timeStaked = block.timestamp - pool.startDate;
+        // //calculate rewards based on amount of time the user staked and amount staked
+        // uint256 timeStaked = (pool.endDate - pool.startDate);
+        // if (pool.endDate > block.timestamp)
+        //     timeStaked = block.timestamp - pool.startDate;
 
-        uint256 timeStakedInDays = timeStaked / 86400;
-        uint256 reward = (timeStakedInDays *
-            netUnstakedAmount *
-            pool.bonusPercentage) / 100;
+        // uint256 timeStakedInDays = timeStaked / 86400;
+        // uint256 reward = (timeStakedInDays *
+        //     netUnstakedAmount *
+        //     pool.bonusPercentage) / 100;
 
-        // Transfer rewards to the user
-        IERC20(pool.rewardTokenAddress).transfer(msg.sender, reward);
+        // // Transfer rewards to the user
+        // IERC20(pool.rewardTokenAddress).transfer(msg.sender, reward);
 
-        // Update user's staked balance
-        stakedBalances[msg.sender][_poolId] -= _amount;
+        // // Update user's staked balance
+        // stakedBalances[msg.sender][_poolId] -= _amount;
 
-        // Update total staked tokens in the pool
-        pool.totalRewards -= _amount;
+        // // Update total staked tokens in the pool
+        // pool.totalRewards -= _amount;
 
-        // Emit unstake event
-        emit Unstaked(msg.sender, _poolId, _amount, penalty);
+        // // Emit unstake event
+        // emit Unstaked(msg.sender, _poolId, _amount, penalty);
     }
-
-    /** @dev Basis of how long it's been during the most recent snapshot/block */
-    // function rewardPerToken(uint256 _poolId) public view returns (uint256) {
-    //     StakingPool memory pool = stakingPools[_poolId];
-    //     if (pool.totalRewards == 0) {
-    //         return 0;
-    //     } else {
-    //         return
-    //             pool.rewardPerTokenStored +
-    //             (((block.timestamp - pool.endDate) *
-    //                 pool.bonusPercentage *
-    //                 1e18) / pool.totalRewards);
-    //     }
-    // }
 
     // Function to check if a pool exists
     function poolExists(uint256 _poolId) external view returns (bool) {
