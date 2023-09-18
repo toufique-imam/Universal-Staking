@@ -5,9 +5,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract StakingContract is Ownable, Pausable, ReentrancyGuard {
+contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     // Structure to represent staking pools
     struct StakingPool {
         address stakingAddress;
@@ -520,4 +521,13 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
     
+    function onERC721Received(
+        address,
+        address from,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        require(from == address(0x0), "Cannot send nfts to Vault directly");
+        return IERC721Receiver.onERC721Received.selector;
+    }
 }

@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract StakingContract is Ownable, Pausable, ReentrancyGuard {
+contract NFTStaking is Ownable, Pausable, ReentrancyGuard {
     // Structure to represent staking pools
 
     struct StakingPool {
