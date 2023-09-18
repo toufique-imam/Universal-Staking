@@ -35,9 +35,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
 
     // Mapping to track staking pools
     mapping(uint256 => StakingPool) public stakingPools;
-    
+
     //mapping nft token id to stake
     mapping(address => mapping(uint256 => Stake)) public vaults;
+    //for nft, staking address => token id => stake
+    // for token, user => poolId => stake and tokenID = token amount
 
     uint256 public poolCount;
 
@@ -52,10 +54,10 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
 
     event PoolCreated(uint256 poolId);
     event Staked(address indexed user, uint256 indexed poolId, uint256 amount);
-    
-    event NFTStaked(address owner, uint256 poolId, uint256 tokenId, uint256 value);
-    event NFTUnstaked(address owner,uint256 poolId, uint256 tokenId, uint256 value);
-    
+
+    event NFTStaked(address owner, uint256 poolId, uint256 tokenId);
+    event NFTUnstaked(address owner, uint256 poolId, uint256 tokenId);
+
     event Unstaked(
         address indexed user,
         uint256 indexed poolId,
@@ -131,18 +133,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         );
         // Make sure to approve the contract to spend the tokens beforehand
         require(
-            pool.rewardToken.allowance(
-                msg.sender,
-                address(this)
-            ) >= amount,
+            pool.rewardToken.allowance(msg.sender, address(this)) >= amount,
             "Please approve the contract to spend the tokens first"
         );
         // Transfer staking tokens from the user to the contract
-        pool.rewardToken.transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
+        pool.rewardToken.transferFrom(msg.sender, address(this), amount);
         pool.rewardTokenAmount += amount;
     }
 
@@ -195,7 +190,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
 
         // Update total staked tokens in the pool
         pool.totalStaked += netStakedAmount;
-        
+
         vaults[msg.sender][_poolId] = Stake({
             poolId: _poolId,
             tokenId: _amount,
@@ -229,9 +224,9 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
                 pool.maxStakePerWallet,
             "Exceeded maximum stake limit"
         );
-        
+
         IERC721 nft = IERC721(pool.stakingAddress);
-        
+
         uint256 tokenId;
         pool.totalStaked += tokenIds.length;
 
@@ -239,10 +234,13 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             tokenId = tokenIds[i];
             require(nft.ownerOf(tokenId) == msg.sender, "not your token");
             require(nft.getApproved(tokenId) == address(this), "not approved");
-            require(vaults[pool.stakingAddress][tokenId].tokenId == 0, "already staked");
+            require(
+                vaults[pool.stakingAddress][tokenId].tokenId == 0,
+                "already staked"
+            );
 
             nft.safeTransferFrom(msg.sender, address(this), tokenId);
-            emit NFTStaked(msg.sender, _poolId, tokenId, block.timestamp);
+            emit NFTStaked(msg.sender, _poolId, tokenId);
 
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
@@ -261,7 +259,19 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     ) external whenNotPaused nonReentrant {
         _claimToken(_poolId, msg.sender, _amount, true);
     }
-    function _unstakeToken(uint256 _poolId, address account, uint256 _amount) internal {
+
+    function claimToken(
+        uint256 _poolId,
+        uint256 _amount
+    ) external nonReentrant {
+        _claimToken(_poolId, msg.sender, _amount, false);
+    }
+
+    function _unstakeToken(
+        uint256 _poolId,
+        address account,
+        uint256 _amount
+    ) internal {
         StakingPool storage pool = stakingPools[_poolId];
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
@@ -298,19 +308,24 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         });
         emit Unstaked(account, _poolId, _amount, penalty);
     }
-    function claimToken(uint256 _poolId, uint256 _amount)  external nonReentrant {
-        _claimToken(_poolId, msg.sender, _amount, false);
-    }
-    function _claimToken(uint256 _poolId, address account, uint256 _amount, bool _unstake) internal {
+
+    function _claimToken(
+        uint256 _poolId,
+        address account,
+        uint256 _amount,
+        bool _unstake
+    ) internal {
         StakingPool storage pool = stakingPools[_poolId];
 
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
-        
+        require(!pool.isNFT, "This function is for Tokens only");
         Stake memory staked = vaults[account][_poolId];
         require(staked.owner == account, "not an owner");
-        uint256 stakedAt = staked.timestamp;    
-        uint256 earned = (staked.tokenId * pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+        uint256 stakedAt = staked.timestamp;
+        uint256 earned = (staked.tokenId *
+            pool.bonusPercentage *
+            (block.timestamp - stakedAt)) / 1 days;
         earned = earned / 100;
 
         vaults[account][_poolId] = Stake({
@@ -324,6 +339,96 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         }
         if (_unstake) {
             _unstakeToken(_poolId, account, _amount);
+        }
+        emit RewardClaimed(account, _poolId, earned);
+    }
+
+    function unstakeNFT(
+        uint256 _poolId,
+        uint256[] calldata tokenIds
+    ) external nonReentrant {
+        _claimNFT(_poolId, msg.sender, tokenIds, true);
+    }
+
+    function claimNFT(
+        uint256 _poolId,
+        uint256[] calldata tokenIds
+    ) external nonReentrant {
+        _claimNFT(_poolId, msg.sender, tokenIds, false);
+    }
+
+    function _unstakeNFT(
+        uint256 _poolId,
+        address account,
+        uint256[] calldata tokenIds
+    ) internal {
+        uint256 tokenId;
+        StakingPool storage pool = stakingPools[_poolId];
+        require(pool.isActive, "This pool is not active");
+        require(pool.isNFT, "This function is for NFT stake only");
+        require(
+            block.timestamp >= pool.startDate &&
+                block.timestamp <= pool.endDate,
+            "Staking period is not valid"
+        );
+        pool.totalStaked -= tokenIds.length;
+        for (uint i = 0; i < tokenIds.length; i++) {
+            tokenId = tokenIds[i];
+            Stake memory staked = vaults[pool.stakingAddress][tokenId];
+            require(staked.owner == account, "not an owner");
+            stakedBalances[account][_poolId]--;
+            delete vaults[pool.stakingAddress][tokenId];
+            emit NFTUnstaked(account, _poolId, tokenId);
+
+            IERC721(pool.stakingAddress).safeTransferFrom(
+                address(this),
+                account,
+                tokenId
+            );
+        }
+    }
+
+    function _claimNFT(
+        uint256 _poolId,
+        address account,
+        uint256[] calldata tokenIds,
+        bool _unstake
+    ) internal {
+        StakingPool storage pool = stakingPools[_poolId];
+        require(pool.isActive, "This pool is not active");
+        require(pool.isNFT, "This function is for NFT stake only");
+        uint256 tokenId;
+        uint256 earned = 0;
+        for (uint i = 0; i < tokenIds.length; i++) {
+            tokenId = tokenIds[i];
+            Stake memory staked = vaults[pool.stakingAddress][tokenId];
+            require(staked.owner == account, "not an owner");
+            uint256 stakedAt = staked.timestamp;
+            earned =
+                earned +
+                (staked.tokenId *
+                    pool.bonusPercentage *
+                    (block.timestamp - stakedAt)) /
+                1 days;
+
+            vaults[pool.stakingAddress][tokenId] = Stake({
+                poolId: _poolId,
+                tokenId: tokenId,
+                timestamp: uint48(block.timestamp),
+                owner: account
+            });
+        }
+        if (_unstake) {
+            if (earned > 0 && pool.endDate < block.timestamp) {
+                earned = (earned * (100 - pool.penaltyPercentage)) / 100;
+            }
+            earned = (earned * (100 - pool.unstakingFeePercentage)) / 100;
+        }
+        if (earned > 0) {
+            pool.rewardToken.transfer(account, earned);
+        }
+        if (_unstake) {
+            _unstakeNFT(_poolId, account, tokenIds);
         }
         emit RewardClaimed(account, _poolId, earned);
     }
@@ -348,9 +453,9 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         return stakingPools[_poolId];
     }
 
-    // Function to set a pool as inactive (emergency shutdown)
-    function setPoolInactive(uint256 _poolId, bool status) external onlyOwner {
+    function setPoolInactive(uint256 _poolId, bool status) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
+        require(pool.creator == msg.sender, "Only creator can set pool inactive");
         require(pool.isActive != status, "Pool is already in the same state");
         pool.isActive = status;
     }
