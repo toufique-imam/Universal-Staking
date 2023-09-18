@@ -2,7 +2,7 @@ import * as React from 'react';
 import Button from '@mui/material/Button';
 import { Switch, TextField } from '@mui/material';
 import { toast } from 'react-toastify';
-import { setPoolInactive } from '@/utils/stake/admin';
+import { setPoolInactive } from '@/utils/stake/user';
 
 const label = { inputProps: { 'aria-label': 'Pool Status' } };
 
@@ -12,7 +12,7 @@ export default function PoolActivityView() {
     const handleSetActivePool = async () => {
         toast.info('handle setPoolInactive');
         const res = await setPoolInactive(BigInt(poolId), poolStatus);
-        if(res == -1){
+        if (res == -1) {
             toast.error('setPoolInactive failed');
             return;
         }

@@ -2,12 +2,13 @@ import PauseStakeView from "./PauseStake";
 import UnpauseStakeView from "./UnpauseStake";
 import TransferOwnershipView from "./TransferOwnership";
 import WithdrawTokenView from "./WithdrawToken";
-import WithdrawRewardTokenView from "./WithdrawReward";
-import PoolActivityView from "./PoolActivity";
 
 export default function AdminView() {
     return (
         <div>
+            <h2>Admin Functions </h2>
+            <br />
+            <br />
             <PauseStakeView />
             <hr />
             <br />
@@ -23,12 +24,6 @@ export default function AdminView() {
             <WithdrawTokenView />
             <hr />
             <br />
-
-            <WithdrawRewardTokenView />
-            <hr />
-            <br />
-
-            <PoolActivityView />
         </div>
     );
 }

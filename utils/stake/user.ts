@@ -30,7 +30,7 @@ export const createStakingPool = async (stakingToken: Address, rewardToken: Addr
         return -1;
     }
 }
-export const stakeNFT = async (poolId: bigint, tokenIds: [bigint]) => {
+export const stakeNFT = async (poolId: bigint, tokenIds: Array<bigint>) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
@@ -82,7 +82,7 @@ export const unstakeToken = async (poolId: bigint, amount: bigint) => {
     }
 }
 
-export const unstakeNFT = async (poolId: bigint, tokenIds: [bigint]) => {
+export const unstakeNFT = async (poolId: bigint, tokenIds: Array<bigint>) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
@@ -117,7 +117,7 @@ export const claimToken = async (poolId: bigint, amount: bigint) => {
     }
 }
 
-export const claimNFT = async (poolId: bigint, tokenIds: [bigint]) => {
+export const claimNFT = async (poolId: bigint, tokenIds: Array<bigint>) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
@@ -342,5 +342,39 @@ export const updateStakeTokenAllowance = async (poolId: bigint, amount: bigint) 
     } catch (e) {
         console.error(e)
         return -1;
+    }
+}
+export const getTokenAllowanceByPoolId = async (account: Address, poolId: bigint) => {
+    try {
+        const data = await getPoolInfo(poolId)
+        if(data.isNFT) return -1;
+        const result = await readContract({
+            address: data.stakingAddress,
+            abi: erc20ABI,
+            functionName: "allowance",
+            chainId: chains[0].id,
+            args: [account, stakeTokenAddress]
+        })
+        return result;
+    } catch (e) {
+        console.error(e)
+        return 0n;
+    }
+}
+export const getNFTAllowanceByPoolId = async (account: Address, poolId: bigint) => {
+    try {
+        const data = await getPoolInfo(poolId)
+        if (!data.isNFT) return -1;
+        const result = await readContract({
+            address: data.stakingAddress,
+            abi: erc721ABI,
+            functionName: "isApprovedForAll",
+            chainId: chains[0].id,
+            args: [account, stakeTokenAddress]
+        })
+        return result;
+    } catch (e) {
+        console.error(e)
+        return false;
     }
 }

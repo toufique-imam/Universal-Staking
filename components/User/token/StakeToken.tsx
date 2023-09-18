@@ -3,19 +3,35 @@ import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
 import { parseEther } from 'viem';
-import { stake } from '@/utils/stake/user';
+import { getTokenAllowanceByPoolId, stakeToken, updateStakeTokenAllowance } from '@/utils/stake/user';
+import { useAccount } from 'wagmi';
 
-export default function StakeView() {
+export default function StakeTokenView() {
     const [stakeAmount, setStakeAmount] = React.useState('');
     const [poolId, setPoolId] = React.useState('');
+    const { address } = useAccount();
     const handleStake = async () => {
         toast.info('Stake');
-        const res = await stake(BigInt(poolId), parseEther(stakeAmount));
+        if (!address) {
+            toast.error('please connect wallet');
+            return;
+        }
+        const _poolId = BigInt(poolId);
+        const etherAmount = parseEther(stakeAmount);
+        const allowance = await getTokenAllowanceByPoolId(address, _poolId);
+        if (allowance < etherAmount) {
+            const res1 = await updateStakeTokenAllowance(_poolId, etherAmount);
+            if (res1 == -1) {
+                toast.error('update allowance failed');
+                return;
+            }
+        }
+        const res = await stakeToken(_poolId, etherAmount);
         if (res == -1) {
             toast.error('stake failed');
             return;
         }
-        toast.info('stake finished');   
+        toast.info('stake finished');
     }
     return (
         <div>
