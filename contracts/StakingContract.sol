@@ -498,7 +498,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         require(pool.isActive != status, "Pool is already in the same state");
         pool.isActive = status;
     }
-    function withdraw(uint256 _poolId) external nonReentrant {
+    function withdrawStake(uint256 _poolId) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.creator == msg.sender, "Only creator can withdraw");
         require(pool.isActive == false, "Pool is active");

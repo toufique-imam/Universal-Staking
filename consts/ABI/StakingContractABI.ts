@@ -892,9 +892,9 @@ export const StakingContractABI = [
     {
         inputs: [
             {
-                internalType: "uint256",
-                name: "_poolId",
-                type: "uint256"
+                internalType: "address",
+                name: "token",
+                type: "address"
             }
         ],
         name: "withdraw",
@@ -905,12 +905,12 @@ export const StakingContractABI = [
     {
         inputs: [
             {
-                internalType: "address",
-                name: "token",
-                type: "address"
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
             }
         ],
-        name: "withdraw",
+        name: "withdrawStake",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"

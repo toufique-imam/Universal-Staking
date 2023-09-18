@@ -4,6 +4,7 @@ import { Address, zeroAddress } from "viem";
 import { stakeTokenAddress } from "@/consts/contractAddresses";
 import { StakingPool } from "../types";
 import { chains } from "../wagmi";
+import { erc20ABI, erc721ABI } from "wagmi";
 
 export const createStakingPool = async (stakingToken: Address, rewardToken: Address,
     bonusPercentage: bigint,
@@ -210,7 +211,7 @@ export const getEarningInfoNFT = async (poolId: bigint, tokenIds: [bigint]) => {
         console.error(e)
         return 0n;
     }
-} 
+}
 
 export const getEarningInfoToken = async (poolId: bigint, account: Address) => {
     try {
@@ -225,5 +226,121 @@ export const getEarningInfoToken = async (poolId: bigint, account: Address) => {
     } catch (e) {
         console.error(e)
         return 0n;
+    }
+}
+
+export const withdraw = async (poolId: bigint) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "withdrawStake",
+            chainId: chains[0].id,
+            args: [poolId]
+        })
+        const tx = await waitForTransaction({ hash })
+        console.log(tx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const setPoolInactive = async (poolId: bigint, status: boolean) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "setPoolInactive",
+            chainId: chains[0].id,
+            args: [poolId, status]
+        })
+        const allowanceTx = await waitForTransaction({ hash })
+        console.log(allowanceTx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const updateTokenAllowance = async (poolId: bigint, amount: bigint) => {
+    try {
+        const data = await getPoolInfo(poolId)
+        if(data.isNFT) return -1;
+        await updateTokenAllowanceByAddress(data.rewardToken, amount)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const updateTokenAllowanceByAddress = async (tokenAddress: Address, amount: bigint) => {
+    try {
+        const { hash } = await writeContract({
+            address: tokenAddress,
+            abi: erc20ABI,
+            functionName: "approve",
+            chainId: chains[0].id,
+            args: [stakeTokenAddress, amount]
+        })
+        const tx = await waitForTransaction({ hash })
+        console.log(tx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const receiveToken = async (poolId: bigint, amount: bigint) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "receiveToken",
+            chainId: chains[0].id,
+            args: [poolId, amount]
+        })
+        const allowanceTx = await waitForTransaction({ hash })
+        console.log(allowanceTx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const updateStakeNFTAllowance = async (poolId: bigint) => {
+    try {
+        const data = await getPoolInfo(poolId)
+        if(!data.isNFT) return -1;
+        const { hash } = await writeContract({
+            address: data.stakingAddress,
+            abi: erc721ABI,
+            functionName: "setApprovalForAll",
+            chainId: chains[0].id,
+            args: [stakeTokenAddress, true]
+        })
+        const tx = await waitForTransaction({ hash })
+        console.log(tx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const updateStakeTokenAllowance = async (poolId: bigint, amount: bigint) => {
+    try {
+        const data = await getPoolInfo(poolId)
+        if(!data.isNFT) return -1;
+        await updateTokenAllowanceByAddress(data.stakingAddress, amount)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
     }
 }
