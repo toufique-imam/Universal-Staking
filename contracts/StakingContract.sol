@@ -409,12 +409,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             Stake memory staked = vaults[pool.stakingAddress][tokenId];
             require(staked.owner == account, "not an owner");
             uint256 stakedAt = staked.timestamp;
-            earned =
-                earned +
-                (staked.tokenId *
-                    pool.bonusPercentage *
-                    (block.timestamp - stakedAt)) /
-                1 days;
+            earned = earned + (pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
 
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
@@ -463,6 +458,39 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         return stakingPools[_poolId];
     }
 
+    function earningInfoNFT(
+        uint256 _poolId,
+        uint256[] calldata tokenIds
+    ) external view returns (uint256) {
+        uint256 tokenId;
+        uint256 earned = 0;
+        StakingPool memory pool = stakingPools[_poolId];
+        if(pool.isActive == false) return earned;
+        if(pool.isNFT == false) return earned;
+
+        for (uint i = 0; i < tokenIds.length; i++) {
+            tokenId = tokenIds[i];
+            Stake memory staked = vaults[pool.stakingAddress][tokenId];
+            uint256 stakedAt = staked.timestamp;
+            earned = earned + (pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+        }
+        return earned;
+    }
+    function earningInfoToken(
+        uint256 _poolId,
+        address account
+    ) external view returns (uint256) {
+        uint256 earned = 0;
+        StakingPool memory pool = stakingPools[_poolId];
+        if(pool.isActive == false) return earned;
+        if(pool.isNFT == true) return earned;
+
+        Stake memory staked = vaults[account][_poolId];
+        uint256 stakedAt = staked.timestamp;
+        earned = (staked.tokenId * pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+        return earned;
+    }
+
     function setPoolInactive(uint256 _poolId, bool status) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.creator == msg.sender, "Only creator can set pool inactive");
@@ -491,4 +519,5 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     function unpause() external onlyOwner {
         _unpause();
     }
+    
 }
