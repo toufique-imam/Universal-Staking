@@ -1,2 +1,1 @@
-export const rewardTokenAddress = '0xF105302f6D6E9b4B50A0DF3C03b3DB4B7E646D3c'
-export const stakeTokenAddress = '0x8AD35787b3024Fb13f0642fb344A016cB6b086B7'
+export const stakeTokenAddress = '0xBE3b9dE0B31E2d97E8CFA9DbeA86Dc50aA290E98'

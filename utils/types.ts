@@ -1,9 +1,10 @@
 import { Address } from "viem";
 
 export interface StakingPool {
-    stakingToken: Address;
-    stakingTokenDecimals: number;
-    totalRewards: bigint;
+    stakingAddress: Address;
+    rewardToken: Address;
+    rewardTokenAmount: bigint;
+    totalStaked: bigint;
     startDate: bigint;
     endDate: bigint;
     creator: Address;
@@ -14,4 +15,5 @@ export interface StakingPool {
     maxStakePerWallet: bigint;
     isActive: boolean;
     penaltyPercentage: bigint;
+    isNFT: boolean;
 }

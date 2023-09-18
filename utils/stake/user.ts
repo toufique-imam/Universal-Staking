@@ -1,18 +1,25 @@
 import { StakingContractABI } from "@/consts/ABI/StakingContractABI";
 import { writeContract, waitForTransaction, readContract, prepareWriteContract } from "wagmi/actions"
 import { Address, zeroAddress } from "viem";
-import { bscTestnet } from "viem/chains";
 import { stakeTokenAddress } from "@/consts/contractAddresses";
 import { StakingPool } from "../types";
+import { chains } from "../wagmi";
 
-export const createStakingPool = async (stakingToken: Address, stakingTokenDecimals: number, bonusPercentage: bigint, startDate: bigint, endDate: bigint, stakingFeePercentage: number, unstakingFeePercentage: number, maxStakingFeePercentage: number, maxStakePerWallet: bigint, penaltyPercentage: bigint) => {
+export const createStakingPool = async (stakingToken: Address, rewardToken: Address,
+    bonusPercentage: bigint,
+    startDate: bigint, endDate: bigint,
+    stakingFeePercentage: number, unstakingFeePercentage: number, maxStakingFeePercentage: number,
+    maxStakePerWallet: bigint, penaltyPercentage: bigint,
+    isNFT: boolean
+) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
             functionName: "createStakingPool",
-            chainId: bscTestnet.id,
-            args: [stakingToken, stakingTokenDecimals, bonusPercentage, startDate, endDate, stakingFeePercentage, unstakingFeePercentage, maxStakingFeePercentage, maxStakePerWallet, penaltyPercentage]
+            chainId: chains[0].id,
+            args: [stakingToken, rewardToken, bonusPercentage, startDate, endDate, stakingFeePercentage, unstakingFeePercentage,
+                maxStakingFeePercentage, maxStakePerWallet, penaltyPercentage, isNFT]
         })
         const allowanceTx = await waitForTransaction({ hash })
         console.log(allowanceTx)
@@ -22,13 +29,30 @@ export const createStakingPool = async (stakingToken: Address, stakingTokenDecim
         return -1;
     }
 }
-export const stake = async (poolId: bigint, amount: bigint) => {
+export const stakeNFT = async (poolId: bigint, tokenIds: [bigint]) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "stake",
-            chainId: bscTestnet.id,
+            functionName: "stakeNFT",
+            chainId: chains[0].id,
+            args: [poolId, tokenIds]
+        })
+        const allowanceTx = await waitForTransaction({ hash })
+        console.log(allowanceTx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+export const stakeToken = async (poolId: bigint, amount: bigint) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "stakeToken",
+            chainId: chains[0].id,
             args: [poolId, amount]
         })
         const allowanceTx = await waitForTransaction({ hash })
@@ -39,14 +63,67 @@ export const stake = async (poolId: bigint, amount: bigint) => {
         return -1;
     }
 }
-export const unstake = async (poolId: bigint, amount: bigint) => {
+export const unstakeToken = async (poolId: bigint, amount: bigint) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "unstake",
-            chainId: bscTestnet.id,
+            functionName: "unstakeToken",
+            chainId: chains[0].id,
             args: [poolId, amount]
+        })
+        const allowanceTx = await waitForTransaction({ hash })
+        console.log(allowanceTx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const unstakeNFT = async (poolId: bigint, tokenIds: [bigint]) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "unstakeNFT",
+            chainId: chains[0].id,
+            args: [poolId, tokenIds]
+        })
+        const allowanceTx = await waitForTransaction({ hash })
+        console.log(allowanceTx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+export const claimToken = async (poolId: bigint, amount: bigint) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "claimToken",
+            chainId: chains[0].id,
+            args: [poolId, amount]
+        })
+        const allowanceTx = await waitForTransaction({ hash })
+        console.log(allowanceTx)
+        return 1;
+    } catch (e) {
+        console.error(e)
+        return -1;
+    }
+}
+
+export const claimNFT = async (poolId: bigint, tokenIds: [bigint]) => {
+    try {
+        const { hash } = await writeContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "claimNFT",
+            chainId: chains[0].id,
+            args: [poolId, tokenIds]
         })
         const allowanceTx = await waitForTransaction({ hash })
         console.log(allowanceTx)
@@ -64,7 +141,7 @@ export const poolExists = async (poolId: bigint) => {
             address: stakeTokenAddress,
             abi: StakingContractABI,
             functionName: "poolExists",
-            chainId: bscTestnet.id,
+            chainId: chains[0].id,
             args: [poolId]
         })
         return result;
@@ -79,7 +156,7 @@ export const poolIsActive = async (poolId: bigint) => {
             address: stakeTokenAddress,
             abi: StakingContractABI,
             functionName: "poolIsActive",
-            chainId: bscTestnet.id,
+            chainId: chains[0].id,
             args: [poolId]
         })
         return result;
@@ -94,26 +171,28 @@ export const getPoolInfo = async (poolId: bigint) => {
             address: stakeTokenAddress,
             abi: StakingContractABI,
             functionName: "getPoolInfo",
-            chainId: bscTestnet.id,
+            chainId: chains[0].id,
             args: [poolId]
         })
         return result as StakingPool;
     } catch (e) {
         console.error(e)
-        return { 
-            stakingToken: zeroAddress,
-            stakingTokenDecimals: 0,
-            totalRewards: 0n,
-            startDate: 0n,
-            endDate: 0n,
+        return {
+            stakingAddress: zeroAddress,
+            rewardToken: zeroAddress,
+            rewardTokenAmount: BigInt(0),
+            totalStaked: BigInt(0),
+            startDate: BigInt(0),
+            endDate: BigInt(0),
             creator: zeroAddress,
             stakingFeePercentage: 0,
             unstakingFeePercentage: 0,
             maxStakingFeePercentage: 0,
-            bonusPercentage: 0n,
-            maxStakePerWallet: 0n,
+            bonusPercentage: BigInt(0),
+            maxStakePerWallet: BigInt(0),
             isActive: false,
-            penaltyPercentage: 0n
+            penaltyPercentage: BigInt(0),
+            isNFT: false
         } as StakingPool;
     }
 }

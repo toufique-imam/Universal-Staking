@@ -1,14 +1,58 @@
 export const StakingContractABI = [
     {
-        inputs: [
-            {
-                internalType: "address",
-                name: "_rewardToken",
-                type: "address"
-            }
-        ],
+        inputs: [],
         stateMutability: "nonpayable",
         type: "constructor"
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
+                indexed: false,
+                internalType: "address",
+                name: "owner",
+                type: "address"
+            },
+            {
+                indexed: false,
+                internalType: "uint256",
+                name: "poolId",
+                type: "uint256"
+            },
+            {
+                indexed: false,
+                internalType: "uint256",
+                name: "tokenId",
+                type: "uint256"
+            }
+        ],
+        name: "NFTStaked",
+        type: "event"
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
+                indexed: false,
+                internalType: "address",
+                name: "owner",
+                type: "address"
+            },
+            {
+                indexed: false,
+                internalType: "uint256",
+                name: "poolId",
+                type: "uint256"
+            },
+            {
+                indexed: false,
+                internalType: "uint256",
+                name: "tokenId",
+                type: "uint256"
+            }
+        ],
+        name: "NFTUnstaked",
+        type: "event"
     },
     {
         anonymous: false,
@@ -152,14 +196,50 @@ export const StakingContractABI = [
     {
         inputs: [
             {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256[]",
+                name: "tokenIds",
+                type: "uint256[]"
+            }
+        ],
+        name: "claimNFT",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_amount",
+                type: "uint256"
+            }
+        ],
+        name: "claimToken",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
                 internalType: "address",
-                name: "_stakingToken",
+                name: "_stakingAddress",
                 type: "address"
             },
             {
-                internalType: "uint8",
-                name: "_stakingTokenDecimals",
-                type: "uint8"
+                internalType: "address",
+                name: "_rewardTokenAddress",
+                type: "address"
             },
             {
                 internalType: "uint256",
@@ -200,11 +280,64 @@ export const StakingContractABI = [
                 internalType: "uint256",
                 name: "_penaltyPercentage",
                 type: "uint256"
+            },
+            {
+                internalType: "bool",
+                name: "isNFT",
+                type: "bool"
             }
         ],
         name: "createStakingPool",
         outputs: [],
         stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256[]",
+                name: "tokenIds",
+                type: "uint256[]"
+            }
+        ],
+        name: "earningInfoNFT",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
+                internalType: "address",
+                name: "account",
+                type: "address"
+            }
+        ],
+        name: "earningInfoToken",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "view",
         type: "function"
     },
     {
@@ -221,17 +354,22 @@ export const StakingContractABI = [
                 components: [
                     {
                         internalType: "address",
-                        name: "stakingToken",
+                        name: "stakingAddress",
                         type: "address"
                     },
                     {
-                        internalType: "uint8",
-                        name: "stakingTokenDecimals",
-                        type: "uint8"
+                        internalType: "contract IERC20",
+                        name: "rewardToken",
+                        type: "address"
                     },
                     {
                         internalType: "uint256",
-                        name: "totalRewards",
+                        name: "rewardTokenAmount",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "totalStaked",
                         type: "uint256"
                     },
                     {
@@ -285,9 +423,9 @@ export const StakingContractABI = [
                         type: "uint256"
                     },
                     {
-                        internalType: "uint256",
-                        name: "rewardPerTokenStored",
-                        type: "uint256"
+                        internalType: "bool",
+                        name: "isNFT",
+                        type: "bool"
                     }
                 ],
                 internalType: "struct StakingContract.StakingPool",
@@ -296,6 +434,40 @@ export const StakingContractABI = [
             }
         ],
         stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "address",
+                name: "",
+                type: "address"
+            },
+            {
+                internalType: "address",
+                name: "from",
+                type: "address"
+            },
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            },
+            {
+                internalType: "bytes",
+                name: "",
+                type: "bytes"
+            }
+        ],
+        name: "onERC721Received",
+        outputs: [
+            {
+                internalType: "bytes4",
+                name: "",
+                type: "bytes4"
+            }
+        ],
+        stateMutability: "pure",
         type: "function"
     },
     {
@@ -383,29 +555,28 @@ export const StakingContractABI = [
         type: "function"
     },
     {
-        inputs: [],
-        name: "renounceOwnership",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
         inputs: [
             {
                 internalType: "uint256",
                 name: "_poolId",
                 type: "uint256"
-            }
-        ],
-        name: "rewardPerToken",
-        outputs: [
+            },
             {
                 internalType: "uint256",
-                name: "",
+                name: "amount",
                 type: "uint256"
             }
         ],
-        stateMutability: "view",
+        name: "receiveToken",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [],
+        name: "renounceOwnership",
+        outputs: [],
+        stateMutability: "nonpayable",
         type: "function"
     },
     {
@@ -458,12 +629,30 @@ export const StakingContractABI = [
                 type: "uint256"
             },
             {
+                internalType: "uint256[]",
+                name: "tokenIds",
+                type: "uint256[]"
+            }
+        ],
+        name: "stakeNFT",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
                 internalType: "uint256",
                 name: "_amount",
                 type: "uint256"
             }
         ],
-        name: "stake",
+        name: "stakeToken",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
@@ -504,17 +693,22 @@ export const StakingContractABI = [
         outputs: [
             {
                 internalType: "address",
-                name: "stakingToken",
+                name: "stakingAddress",
                 type: "address"
             },
             {
-                internalType: "uint8",
-                name: "stakingTokenDecimals",
-                type: "uint8"
+                internalType: "contract IERC20",
+                name: "rewardToken",
+                type: "address"
             },
             {
                 internalType: "uint256",
-                name: "totalRewards",
+                name: "rewardTokenAmount",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "totalStaked",
                 type: "uint256"
             },
             {
@@ -568,9 +762,9 @@ export const StakingContractABI = [
                 type: "uint256"
             },
             {
-                internalType: "uint256",
-                name: "rewardPerTokenStored",
-                type: "uint256"
+                internalType: "bool",
+                name: "isNFT",
+                type: "bool"
             }
         ],
         stateMutability: "view",
@@ -604,12 +798,30 @@ export const StakingContractABI = [
                 type: "uint256"
             },
             {
+                internalType: "uint256[]",
+                name: "tokenIds",
+                type: "uint256[]"
+            }
+        ],
+        name: "unstakeNFT",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
                 internalType: "uint256",
                 name: "_amount",
                 type: "uint256"
             }
         ],
-        name: "unstake",
+        name: "unstakeToken",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
@@ -642,8 +854,47 @@ export const StakingContractABI = [
         inputs: [
             {
                 internalType: "address",
-                name: "token",
+                name: "",
                 type: "address"
+            },
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            }
+        ],
+        name: "vaults",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "poolId",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "tokenId",
+                type: "uint256"
+            },
+            {
+                internalType: "uint48",
+                name: "timestamp",
+                type: "uint48"
+            },
+            {
+                internalType: "address",
+                name: "owner",
+                type: "address"
+            }
+        ],
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
             }
         ],
         name: "withdraw",
@@ -652,8 +903,14 @@ export const StakingContractABI = [
         type: "function"
     },
     {
-        inputs: [],
-        name: "withdrawRewardToken",
+        inputs: [
+            {
+                internalType: "address",
+                name: "token",
+                type: "address"
+            }
+        ],
+        name: "withdraw",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
