@@ -335,7 +335,12 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             owner: account
         });
         if (earned > 0) {
+            require(
+                pool.rewardTokenAmount >= earned,
+                "Not enough reward tokens in the pool"
+            );
             pool.rewardToken.transfer(account, earned);
+            pool.rewardTokenAmount -= earned;
         }
         if (_unstake) {
             _unstakeToken(_poolId, account, _amount);
@@ -425,7 +430,12 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
             earned = (earned * (100 - pool.unstakingFeePercentage)) / 100;
         }
         if (earned > 0) {
+            require(
+                pool.rewardTokenAmount >= earned,
+                "Not enough reward tokens in the pool"
+            );
             pool.rewardToken.transfer(account, earned);
+            pool.rewardTokenAmount -= earned;
         }
         if (_unstake) {
             _unstakeNFT(_poolId, account, tokenIds);
@@ -459,8 +469,15 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
         require(pool.isActive != status, "Pool is already in the same state");
         pool.isActive = status;
     }
+    function withdraw(uint256 _poolId) external nonReentrant {
+        StakingPool storage pool = stakingPools[_poolId];
+        require(pool.creator == msg.sender, "Only creator can withdraw");
+        require(pool.isActive == false, "Pool is active");
+        pool.rewardToken.transfer(msg.sender, pool.rewardTokenAmount);
+        pool.rewardTokenAmount = 0;
+    }
 
-    function withdraw(address token) external onlyOwner whenPaused {
+    function withdraw(address token) external onlyOwner whenPaused nonReentrant {
         IERC20(token).transfer(
             msg.sender,
             IERC20(token).balanceOf(address(this))
