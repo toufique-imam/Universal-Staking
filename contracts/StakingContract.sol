@@ -263,7 +263,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     function claimToken(
         uint256 _poolId,
         uint256 _amount
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         _claimToken(_poolId, msg.sender, _amount, false);
     }
 
@@ -346,14 +346,14 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard {
     function unstakeNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         _claimNFT(_poolId, msg.sender, tokenIds, true);
     }
 
     function claimNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         _claimNFT(_poolId, msg.sender, tokenIds, false);
     }
 
