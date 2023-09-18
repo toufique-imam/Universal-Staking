@@ -196,4 +196,34 @@ export const getPoolInfo = async (poolId: bigint) => {
         } as StakingPool;
     }
 }
-export const 
+export const getEarningInfoNFT = async (poolId: bigint, tokenIds: [bigint]) => {
+    try {
+        const result = await readContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "earningInfoNFT",
+            chainId: chains[0].id,
+            args: [poolId, tokenIds]
+        })
+        return result;
+    } catch (e) {
+        console.error(e)
+        return 0n;
+    }
+} 
+
+export const getEarningInfoToken = async (poolId: bigint, account: Address) => {
+    try {
+        const result = await readContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "earningInfoToken",
+            chainId: chains[0].id,
+            args: [poolId, account]
+        })
+        return result;
+    } catch (e) {
+        console.error(e)
+        return 0n;
+    }
+}
