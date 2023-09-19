@@ -338,21 +338,10 @@ contract StakingContract is
         require(staked.owner == account, "not an owner");
         uint256 earned = 0;
         if (pool.isSharedPool) {
-            earned =
-                (staked.tokenId *
-                    pool.bonusPercentage *
-                    (block.timestamp - staked.timestamp)) /
-                1 days;
+            earned = (staked.tokenId * pool.bonusPercentage * (block.timestamp - staked.timestamp)/1 days); 
         } else {
-            uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
-                (pool.endDate - pool.startDate);
-            //tokenid = amount
-            //stakedAt = latest staked/claimed time
-            earned =
-                (staked.tokenId *
-                    totalPoolRewardPerPeriod *
-                    (block.timestamp - staked.timestamp)) /
-                1 days;
+            uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount / (pool.endDate - pool.startDate);
+            earned = (staked.tokenId * totalPoolRewardPerPeriod * (block.timestamp - staked.timestamp)/ 1 days);
         }
         earned = earned / 100;
         vaults[account][_poolId] = Stake({
@@ -436,19 +425,11 @@ contract StakingContract is
             Stake memory staked = vaults[pool.stakingAddress][tokenId];
             require(staked.owner == account, "not an owner");
             if (pool.isSharedPool) {
-                earned =
-                    earned +
-                    (pool.bonusPercentage *
-                        (block.timestamp - staked.timestamp)) /
-                    1 days;
+                earned = earned + (pool.bonusPercentage * (block.timestamp - staked.timestamp)/ 1 days );
             } else {
                 uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
                     (pool.endDate - pool.startDate);
-                earned =
-                    earned +
-                    (totalPoolRewardPerPeriod *
-                        (block.timestamp - staked.timestamp)) /
-                    1 days;
+                earned = earned + (totalPoolRewardPerPeriod * (block.timestamp - staked.timestamp)/ 1 days);
             }
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
@@ -520,16 +501,14 @@ contract StakingContract is
                 earned =
                     earned +
                     (pool.bonusPercentage *
-                        (block.timestamp - staked.timestamp)) /
-                    1 days;
+                        (block.timestamp - staked.timestamp) / 1 days);
             } else {
                 uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
                     (pool.endDate - pool.startDate);
                 earned =
                     earned +
                     (totalPoolRewardPerPeriod *
-                        (block.timestamp - staked.timestamp)) /
-                    1 days;
+                        (block.timestamp - staked.timestamp)/ 1 days);
             }
         }
         earned = earned / 100;
