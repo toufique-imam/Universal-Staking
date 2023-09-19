@@ -2,7 +2,7 @@ import * as React from 'react';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
-import { withdraw } from '@/utils/stake/admin';
+import { withdrawToken } from '@/utils/stake/admin';
 import { Address, isAddress } from 'viem';
 
 export default function WithdrawTokenView() {
@@ -13,7 +13,7 @@ export default function WithdrawTokenView() {
             return;
         }
         toast.info('Withdraw token');
-        const res = await withdraw(withdrawAddress as Address);
+        const res = await withdrawToken(withdrawAddress as Address);
         if (res == -1) {
             toast.error('withdraw failed');
             return;

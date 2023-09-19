@@ -500,6 +500,7 @@ contract StakingContract is
         return stakingPools[_poolId];
     }
 
+
     function earningInfoNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
@@ -637,8 +638,17 @@ contract StakingContract is
         unstakingFeePercentageNominator = _unstakingFeePercentageN;
         unstakingFeePercentageDominator = _unstakingFeePercentageD;
     }
+    function getStakingFeePercentage() external view returns (uint256, uint256) {
+        return (stakingFeePercentageNominator, stakingFeePercentageDominator);
+    }
+    function getUnstakingFeePercentage() external view returns (uint256, uint256) {
+        return (unstakingFeePercentageNominator, unstakingFeePercentageDominator);
+    }
 
     function setPoolCreationFee(uint256 _poolCreationFee) external onlyOwner {
         poolCreationFee = _poolCreationFee;
+    }
+    function getPoolCreationFee() external view returns (uint256) {
+        return poolCreationFee;
     }
 }

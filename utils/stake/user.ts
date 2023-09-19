@@ -5,22 +5,35 @@ import { stakeTokenAddress } from "@/consts/contractAddresses";
 import { StakingPool } from "../types";
 import { chains } from "../wagmi";
 import { erc20ABI, erc721ABI } from "wagmi";
-
+export const getPoolCreationFee = async () => {
+    try {
+        const result = await readContract({
+            address: stakeTokenAddress,
+            abi: StakingContractABI,
+            functionName: "getPoolCreationFee",
+            chainId: chains[0].id,
+        })
+        return result;
+    } catch (e) {
+        console.error(e)
+        return 0n;
+    }
+}
 export const createStakingPool = async (stakingToken: Address, rewardToken: Address,
-    bonusPercentage: bigint,
     startDate: bigint, endDate: bigint,
-    stakingFeePercentage: number, unstakingFeePercentage: number, maxStakingFeePercentage: number,
-    maxStakePerWallet: bigint, penaltyPercentage: bigint,
-    isNFT: boolean
+    maxStakePerWallet: bigint, 
+    isNFT: boolean, isSharedPool: boolean,
+    penaltyPercentage: bigint, bonusPercentage: bigint,
 ) => {
     try {
+        const fee = await getPoolCreationFee()
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
             functionName: "createStakingPool",
             chainId: chains[0].id,
-            args: [stakingToken, rewardToken, bonusPercentage, startDate, endDate, stakingFeePercentage, unstakingFeePercentage,
-                maxStakingFeePercentage, maxStakePerWallet, penaltyPercentage, isNFT]
+            args: [stakingToken, rewardToken, startDate, endDate, maxStakePerWallet, isNFT, isSharedPool, penaltyPercentage, bonusPercentage],
+            value: fee
         })
         const allowanceTx = await waitForTransaction({ hash })
         console.log(allowanceTx)
@@ -186,14 +199,12 @@ export const getPoolInfo = async (poolId: bigint) => {
             startDate: BigInt(0),
             endDate: BigInt(0),
             creator: zeroAddress,
-            stakingFeePercentage: 0,
-            unstakingFeePercentage: 0,
-            maxStakingFeePercentage: 0,
-            bonusPercentage: BigInt(0),
             maxStakePerWallet: BigInt(0),
             isActive: false,
+            isNFT: false,
+            isSharedPool: false,
             penaltyPercentage: BigInt(0),
-            isNFT: false
+            bonusPercentage: BigInt(0),
         } as StakingPool;
     }
 }

@@ -8,12 +8,10 @@ export interface StakingPool {
     startDate: bigint;
     endDate: bigint;
     creator: Address;
-    stakingFeePercentage: number;
-    unstakingFeePercentage: number;
-    maxStakingFeePercentage: number;
-    bonusPercentage: bigint;
     maxStakePerWallet: bigint;
     isActive: boolean;
-    penaltyPercentage: bigint;
     isNFT: boolean;
+    isSharedPool: boolean;
+    bonusPercentage: bigint;
+    penaltyPercentage: bigint;
 }

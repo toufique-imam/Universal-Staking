@@ -1,6 +1,32 @@
 export const StakingContractABI = [
     {
-        inputs: [],
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_stakingFeePercentageN",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_stakingFeePercentageD",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_unstakingFeePercentageN",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_unstakingFeePercentageD",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_poolCreationFee",
+                type: "uint256"
+            }
+        ],
         stateMutability: "nonpayable",
         type: "constructor"
     },
@@ -243,11 +269,6 @@ export const StakingContractABI = [
             },
             {
                 internalType: "uint256",
-                name: "_bonusPercentage",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
                 name: "_startDate",
                 type: "uint256"
             },
@@ -257,39 +278,34 @@ export const StakingContractABI = [
                 type: "uint256"
             },
             {
-                internalType: "uint8",
-                name: "_stakingFeePercentage",
-                type: "uint8"
-            },
-            {
-                internalType: "uint8",
-                name: "_unstakingFeePercentage",
-                type: "uint8"
-            },
-            {
-                internalType: "uint8",
-                name: "_maxStakingFeePercentage",
-                type: "uint8"
-            },
-            {
                 internalType: "uint256",
                 name: "_maxStakePerWallet",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "_penaltyPercentage",
                 type: "uint256"
             },
             {
                 internalType: "bool",
                 name: "isNFT",
                 type: "bool"
+            },
+            {
+                internalType: "bool",
+                name: "isSharedPool",
+                type: "bool"
+            },
+            {
+                internalType: "uint256",
+                name: "penaltyPercentage",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "bonusPercentage",
+                type: "uint256"
             }
         ],
         name: "createStakingPool",
         outputs: [],
-        stateMutability: "nonpayable",
+        stateMutability: "payable",
         type: "function"
     },
     {
@@ -330,6 +346,19 @@ export const StakingContractABI = [
             }
         ],
         name: "earningInfoToken",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [],
+        name: "getPoolCreationFee",
         outputs: [
             {
                 internalType: "uint256",
@@ -388,26 +417,6 @@ export const StakingContractABI = [
                         type: "address"
                     },
                     {
-                        internalType: "uint8",
-                        name: "stakingFeePercentage",
-                        type: "uint8"
-                    },
-                    {
-                        internalType: "uint8",
-                        name: "unstakingFeePercentage",
-                        type: "uint8"
-                    },
-                    {
-                        internalType: "uint8",
-                        name: "maxStakingFeePercentage",
-                        type: "uint8"
-                    },
-                    {
-                        internalType: "uint256",
-                        name: "bonusPercentage",
-                        type: "uint256"
-                    },
-                    {
                         internalType: "uint256",
                         name: "maxStakePerWallet",
                         type: "uint256"
@@ -418,19 +427,65 @@ export const StakingContractABI = [
                         type: "bool"
                     },
                     {
+                        internalType: "bool",
+                        name: "isNFT",
+                        type: "bool"
+                    },
+                    {
+                        internalType: "bool",
+                        name: "isSharedPool",
+                        type: "bool"
+                    },
+                    {
                         internalType: "uint256",
                         name: "penaltyPercentage",
                         type: "uint256"
                     },
                     {
-                        internalType: "bool",
-                        name: "isNFT",
-                        type: "bool"
+                        internalType: "uint256",
+                        name: "bonusPercentage",
+                        type: "uint256"
                     }
                 ],
                 internalType: "struct StakingContract.StakingPool",
                 name: "",
                 type: "tuple"
+            }
+        ],
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [],
+        name: "getStakingFeePercentage",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [],
+        name: "getUnstakingFeePercentage",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
             }
         ],
         stateMutability: "view",
@@ -607,6 +662,19 @@ export const StakingContractABI = [
         inputs: [
             {
                 internalType: "uint256",
+                name: "_poolCreationFee",
+                type: "uint256"
+            }
+        ],
+        name: "setPoolCreationFee",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
                 name: "_poolId",
                 type: "uint256"
             },
@@ -617,6 +685,42 @@ export const StakingContractABI = [
             }
         ],
         name: "setPoolInactive",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_stakingFeePercentageN",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_stakingFeePercentageD",
+                type: "uint256"
+            }
+        ],
+        name: "setStakingFeePercentage",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_unstakingFeePercentageN",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_unstakingFeePercentageD",
+                type: "uint256"
+            }
+        ],
+        name: "setUnstakingFeePercentage",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
@@ -727,26 +831,6 @@ export const StakingContractABI = [
                 type: "address"
             },
             {
-                internalType: "uint8",
-                name: "stakingFeePercentage",
-                type: "uint8"
-            },
-            {
-                internalType: "uint8",
-                name: "unstakingFeePercentage",
-                type: "uint8"
-            },
-            {
-                internalType: "uint8",
-                name: "maxStakingFeePercentage",
-                type: "uint8"
-            },
-            {
-                internalType: "uint256",
-                name: "bonusPercentage",
-                type: "uint256"
-            },
-            {
                 internalType: "uint256",
                 name: "maxStakePerWallet",
                 type: "uint256"
@@ -757,14 +841,24 @@ export const StakingContractABI = [
                 type: "bool"
             },
             {
+                internalType: "bool",
+                name: "isNFT",
+                type: "bool"
+            },
+            {
+                internalType: "bool",
+                name: "isSharedPool",
+                type: "bool"
+            },
+            {
                 internalType: "uint256",
                 name: "penaltyPercentage",
                 type: "uint256"
             },
             {
-                internalType: "bool",
-                name: "isNFT",
-                type: "bool"
+                internalType: "uint256",
+                name: "bonusPercentage",
+                type: "uint256"
             }
         ],
         stateMutability: "view",
@@ -839,30 +933,6 @@ export const StakingContractABI = [
                 type: "uint256"
             }
         ],
-        name: "unstakedBalances",
-        outputs: [
-            {
-                internalType: "uint256",
-                name: "",
-                type: "uint256"
-            }
-        ],
-        stateMutability: "view",
-        type: "function"
-    },
-    {
-        inputs: [
-            {
-                internalType: "address",
-                name: "",
-                type: "address"
-            },
-            {
-                internalType: "uint256",
-                name: "",
-                type: "uint256"
-            }
-        ],
         name: "vaults",
         outputs: [
             {
@@ -876,9 +946,9 @@ export const StakingContractABI = [
                 type: "uint256"
             },
             {
-                internalType: "uint48",
+                internalType: "uint256",
                 name: "timestamp",
-                type: "uint48"
+                type: "uint256"
             },
             {
                 internalType: "address",
@@ -890,13 +960,7 @@ export const StakingContractABI = [
         type: "function"
     },
     {
-        inputs: [
-            {
-                internalType: "address",
-                name: "token",
-                type: "address"
-            }
-        ],
+        inputs: [],
         name: "withdraw",
         outputs: [],
         stateMutability: "nonpayable",
@@ -911,6 +975,19 @@ export const StakingContractABI = [
             }
         ],
         name: "withdrawStake",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "address",
+                name: "token",
+                type: "address"
+            }
+        ],
+        name: "withdrawToken",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
