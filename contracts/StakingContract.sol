@@ -178,6 +178,8 @@ contract StakingContract is
                 _amount,
             "Please approve the contract to spend the tokens first"
         );
+        //claim unclaim reward
+        _claimToken(_poolId, msg.sender, stakedBalances[msg.sender][_poolId], false);
 
         // Transfer staking tokens from the user to the contract
 
@@ -190,7 +192,7 @@ contract StakingContract is
         // Calculate staking fee
         uint256 stakingFee = (_amount * stakingFeePercentageNominator) /
             stakingFeePercentageDominator;
-
+            
         // Calculate net staked amount
         uint256 netStakedAmount = _amount - stakingFee;
 
