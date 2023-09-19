@@ -8,10 +8,17 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
+contract StakingContract is
+    Ownable,
+    Pausable,
+    ReentrancyGuard,
+    IERC721Receiver
+{
     // Structure to represent staking pools
-    uint8 stakingFeePercentage;
-    uint8 unstakingFeePercentage;
+    uint256 stakingFeePercentageDominator;
+    uint256 stakingFeePercentageNominator;
+    uint256 unstakingFeePercentageDominator;
+    uint256 unstakingFeePercentageNominator;
     uint256 poolCreationFee;
 
     struct StakingPool {
@@ -25,13 +32,14 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         uint256 maxStakePerWallet;
         bool isActive;
         bool isNFT;
+        bool isSharedPool;
         uint256 penaltyPercentage;
         uint256 bonusPercentage;
     }
     struct Stake {
         uint256 poolId;
         uint256 tokenId;
-        uint48 timestamp;
+        uint256 timestamp;
         address owner;
     }
 
@@ -50,9 +58,6 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
 
     // Mapping to track user rewards
     mapping(address => mapping(uint256 => uint256)) public rewards;
-
-    // Mapping to track user unstaked balances
-    mapping(address => mapping(uint256 => uint256)) public unstakedBalances;
 
     event PoolCreated(uint256 poolId);
     event Staked(address indexed user, uint256 indexed poolId, uint256 amount);
@@ -73,9 +78,17 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
     );
 
     // Constructor to set the contract owner
-    constructor(uint8 _stakingFeePercentage, uint8 _unstakingFeePercentage, uint256 _poolCreationFee) {
-        stakingFeePercentage = _stakingFeePercentage;
-        unstakingFeePercentage = _unstakingFeePercentage;
+    constructor(
+        uint256 _stakingFeePercentageN,
+        uint256 _stakingFeePercentageD,
+        uint256 _unstakingFeePercentageN,
+        uint256 _unstakingFeePercentageD,
+        uint256 _poolCreationFee
+    ) {
+        stakingFeePercentageNominator = _stakingFeePercentageN;
+        stakingFeePercentageDominator = _stakingFeePercentageD;
+        unstakingFeePercentageNominator = _unstakingFeePercentageN;
+        unstakingFeePercentageDominator = _unstakingFeePercentageD;
         poolCreationFee = _poolCreationFee;
     }
 
@@ -87,11 +100,12 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         uint256 _endDate,
         uint256 _maxStakePerWallet,
         bool isNFT,
+        bool isSharedPool,
         uint256 penaltyPercentage,
         uint256 bonusPercentage
-    ) external whenNotPaused nonReentrant payable {
+    ) external payable whenNotPaused nonReentrant {
         require(msg.value >= poolCreationFee, "Insufficient fee");
-        
+
         uint256 poolId = poolCount;
         stakingPools[poolId] = StakingPool(
             _stakingAddress,
@@ -100,10 +114,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
             0,
             _startDate,
             _endDate,
-            msg.sender, 
+            msg.sender,
             _maxStakePerWallet,
             true,
             isNFT,
+            isSharedPool,
             penaltyPercentage,
             bonusPercentage
         );
@@ -148,7 +163,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
                 block.timestamp <= pool.endDate,
             "Staking period is not valid"
         );
-        require(pool.rewardTokenAmount >0, "No reward token in the pool");
+        require(pool.rewardTokenAmount > 0, "No reward token in the pool");
 
         // Check if the user's staked balance doesn't exceed the maximum allowed
         require(
@@ -173,7 +188,8 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         );
 
         // Calculate staking fee
-        uint256 stakingFee = (_amount * stakingFeePercentage) / 100;
+        uint256 stakingFee = (_amount * stakingFeePercentageNominator) /
+            stakingFeePercentageDominator;
 
         // Calculate net staked amount
         uint256 netStakedAmount = _amount - stakingFee;
@@ -182,12 +198,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         stakedBalances[msg.sender][_poolId] += netStakedAmount;
 
         // Update total staked tokens in the pool
-        pool.totalStaked += netStakedAmount;
-
+        uint256 totalUserStaked = stakedBalances[msg.sender][_poolId];
         vaults[msg.sender][_poolId] = Stake({
             poolId: _poolId,
-            tokenId: _amount,
-            timestamp: uint48(block.timestamp),
+            tokenId: totalUserStaked,
+            timestamp: block.timestamp,
             owner: msg.sender
         });
 
@@ -204,15 +219,15 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.isActive, "This pool is not active");
         require(pool.isNFT, "This function is for NFT stake only");
-        
+
         // Check if the staking period is valid
         require(
             block.timestamp >= pool.startDate &&
                 block.timestamp <= pool.endDate,
             "Staking period is not valid"
         );
-        
-        require(pool.rewardTokenAmount >0, "No reward token in the pool");
+
+        require(pool.rewardTokenAmount > 0, "No reward token in the pool");
 
         // Check if the user's staked balance doesn't exceed the maximum allowed
         require(
@@ -241,7 +256,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
                 tokenId: tokenId,
-                timestamp: uint48(block.timestamp),
+                timestamp: block.timestamp,
                 owner: msg.sender
             });
             stakedBalances[msg.sender][_poolId]++;
@@ -283,7 +298,8 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
             "Unstaking is not allowed before the staking period starts"
         );
         // Calculate unstaking fee
-        uint256 unstakingFee = (_amount * unstakingFeePercentage) / 100;
+        uint256 unstakingFee = (_amount * unstakingFeePercentageNominator) /
+            unstakingFeePercentageDominator;
         // Calculate penalty for early unstaking
         uint256 penalty = 0;
         if (block.timestamp < pool.endDate) {
@@ -295,11 +311,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         // Transfer staking tokens back to the user
         IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
         stakedBalances[account][_poolId] -= _amount;
-        unstakedBalances[account][_poolId] += netUnstakedAmount;
+        //unstakedBalances[account][_poolId] += netUnstakedAmount;
         vaults[account][_poolId] = Stake({
             poolId: _poolId,
             tokenId: stakedBalances[account][_poolId],
-            timestamp: uint48(block.timestamp),
+            timestamp: block.timestamp,
             owner: account
         });
         emit Unstaked(account, _poolId, _amount, penalty);
@@ -318,10 +334,25 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         require(!pool.isNFT, "This function is for Tokens only");
         Stake memory staked = vaults[account][_poolId];
         require(staked.owner == account, "not an owner");
-        uint256 stakedAt = staked.timestamp;
-        uint256 earned = (staked.tokenId * pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+        uint256 earned = 0;
+        if (pool.isSharedPool) {
+            earned =
+                (staked.tokenId *
+                    pool.bonusPercentage *
+                    (block.timestamp - staked.timestamp)) /
+                1 days;
+        } else {
+            uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
+                (pool.endDate - pool.startDate);
+            //tokenid = amount
+            //stakedAt = latest staked/claimed time
+            earned =
+                (staked.tokenId *
+                    totalPoolRewardPerPeriod *
+                    (block.timestamp - staked.timestamp)) /
+                1 days;
+        }
         earned = earned / 100;
-
         vaults[account][_poolId] = Stake({
             poolId: _poolId,
             tokenId: staked.tokenId,
@@ -402,12 +433,25 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
             tokenId = tokenIds[i];
             Stake memory staked = vaults[pool.stakingAddress][tokenId];
             require(staked.owner == account, "not an owner");
-            uint256 stakedAt = staked.timestamp;
-            earned = earned + (pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+            if (pool.isSharedPool) {
+                earned =
+                    earned +
+                    (pool.bonusPercentage *
+                        (block.timestamp - staked.timestamp)) /
+                    1 days;
+            } else {
+                uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
+                    (pool.endDate - pool.startDate);
+                earned =
+                    earned +
+                    (totalPoolRewardPerPeriod *
+                        (block.timestamp - staked.timestamp)) /
+                    1 days;
+            }
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
                 tokenId: tokenId,
-                timestamp: uint48(block.timestamp),
+                timestamp: block.timestamp,
                 owner: account
             });
         }
@@ -416,7 +460,11 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
             if (earned > 0 && pool.endDate < block.timestamp) {
                 earned = (earned * (100 - pool.penaltyPercentage)) / 100;
             }
-            earned = (earned * (100 - unstakingFeePercentage)) / 100;
+            earned =
+                (earned *
+                    (unstakingFeePercentageDominator -
+                        unstakingFeePercentageNominator)) /
+                unstakingFeePercentageDominator;
         }
         if (earned > 0) {
             require(
@@ -459,39 +507,74 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         uint256 tokenId;
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
-        if(pool.isActive == false) return earned;
-        if(pool.isNFT == false) return earned;
+        if (pool.isActive == false) return earned;
+        if (pool.isNFT == false) return earned;
 
         for (uint i = 0; i < tokenIds.length; i++) {
             tokenId = tokenIds[i];
             Stake memory staked = vaults[pool.stakingAddress][tokenId];
-            uint256 stakedAt = staked.timestamp;
-            earned = earned + (pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+            if (pool.isSharedPool) {
+                earned =
+                    earned +
+                    (pool.bonusPercentage *
+                        (block.timestamp - staked.timestamp)) /
+                    1 days;
+            } else {
+                uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
+                    (pool.endDate - pool.startDate);
+                earned =
+                    earned +
+                    (totalPoolRewardPerPeriod *
+                        (block.timestamp - staked.timestamp)) /
+                    1 days;
+            }
         }
         earned = earned / 100;
         return earned;
     }
+
     function earningInfoToken(
         uint256 _poolId,
         address account
     ) external view returns (uint256) {
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
-        if(pool.isActive == false) return earned;
-        if(pool.isNFT == true) return earned;
+        if (pool.isActive == false) return earned;
+        if (pool.isNFT == true) return earned;
 
         Stake memory staked = vaults[account][_poolId];
-        uint256 stakedAt = staked.timestamp;
-        earned = (staked.tokenId * pool.bonusPercentage * (block.timestamp - stakedAt)) / 1 days;
+        if (pool.isSharedPool) {
+            earned =
+                (staked.tokenId *
+                    pool.bonusPercentage *
+                    (block.timestamp - staked.timestamp)) /
+                1 days;
+        } else {
+            uint256 totalPoolRewardPerPeriod = pool.rewardTokenAmount /
+                (pool.endDate - pool.startDate);
+            earned =
+                (staked.tokenId *
+                    totalPoolRewardPerPeriod *
+                    (block.timestamp - staked.timestamp)) /
+                1 days;
+        }
+        earned = earned / 100;
         return earned;
     }
 
-    function setPoolInactive(uint256 _poolId, bool status) external nonReentrant {
+    function setPoolInactive(
+        uint256 _poolId,
+        bool status
+    ) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
-        require(pool.creator == msg.sender, "Only creator can set pool inactive");
+        require(
+            pool.creator == msg.sender,
+            "Only creator can set pool inactive"
+        );
         require(pool.isActive != status, "Pool is already in the same state");
         pool.isActive = status;
     }
+
     function withdrawStake(uint256 _poolId) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.creator == msg.sender, "Only creator can withdraw");
@@ -500,11 +583,17 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         pool.rewardTokenAmount = 0;
     }
 
-    function withdraw(address token) external onlyOwner whenPaused nonReentrant {
+    function withdrawToken(
+        address token
+    ) external onlyOwner whenPaused nonReentrant {
         IERC20(token).transfer(
             msg.sender,
             IERC20(token).balanceOf(address(this))
         );
+    }
+
+    function withdraw() external onlyOwner nonReentrant {
+        payable(msg.sender).transfer(address(this).balance);
     }
 
     function pause() external onlyOwner {
@@ -514,7 +603,7 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
     function unpause() external onlyOwner {
         _unpause();
     }
-    
+
     function onERC721Received(
         address,
         address from,
@@ -524,10 +613,32 @@ contract StakingContract is Ownable, Pausable, ReentrancyGuard, IERC721Receiver 
         require(from == address(0x0), "Cannot send nfts to Vault directly");
         return IERC721Receiver.onERC721Received.selector;
     }
-    function setStakingFeePercentage(uint8 _stakingFeePercentage) external onlyOwner {
-        stakingFeePercentage = _stakingFeePercentage;
+
+    function setStakingFeePercentage(
+        uint256 _stakingFeePercentageN,
+        uint256 _stakingFeePercentageD
+    ) external onlyOwner {
+        require(
+            _stakingFeePercentageN < _stakingFeePercentageD,
+            "Invalid staking fee percentage"
+        );
+        stakingFeePercentageNominator = _stakingFeePercentageN;
+        stakingFeePercentageDominator = _stakingFeePercentageD;
     }
-    function setUnstakingFeePercentage(uint8 _unstakingFeePercentage) external onlyOwner {
-        unstakingFeePercentage = _unstakingFeePercentage;
+
+    function setUnstakingFeePercentage(
+        uint256 _unstakingFeePercentageN,
+        uint256 _unstakingFeePercentageD
+    ) external onlyOwner {
+        require(
+            _unstakingFeePercentageN < _unstakingFeePercentageD,
+            "Invalid unstaking fee percentage"
+        );
+        unstakingFeePercentageNominator = _unstakingFeePercentageN;
+        unstakingFeePercentageDominator = _unstakingFeePercentageD;
+    }
+
+    function setPoolCreationFee(uint256 _poolCreationFee) external onlyOwner {
+        poolCreationFee = _poolCreationFee;
     }
 }
