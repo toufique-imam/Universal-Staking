@@ -12,6 +12,8 @@ export interface StakingPool {
     isActive: boolean;
     isNFT: boolean;
     isSharedPool: boolean;
-    bonusPercentage: bigint;
-    penaltyPercentage: bigint;
+    bonusPercentageNumerator: bigint;
+    bonusPercentageDenominator: bigint;
+    penaltyPercentageNumerator: bigint;
+    penaltyPercentageDenominator: bigint; 
 }

@@ -23,7 +23,8 @@ export const createStakingPool = async (stakingToken: Address, rewardToken: Addr
     startDate: bigint, endDate: bigint,
     maxStakePerWallet: bigint, 
     isNFT: boolean, isSharedPool: boolean,
-    penaltyPercentage: bigint, bonusPercentage: bigint,
+    penaltyPercentageN: bigint, penaltyPercentageD: bigint,
+    bonusPercentageN: bigint, bonusPercentageD: bigint
 ) => {
     try {
         const fee = await getPoolCreationFee()
@@ -32,7 +33,8 @@ export const createStakingPool = async (stakingToken: Address, rewardToken: Addr
             abi: StakingContractABI,
             functionName: "createStakingPool",
             chainId: chains[0].id,
-            args: [stakingToken, rewardToken, startDate, endDate, maxStakePerWallet, isNFT, isSharedPool, penaltyPercentage, bonusPercentage],
+            args: [stakingToken, rewardToken, startDate, endDate, maxStakePerWallet, isNFT, isSharedPool, penaltyPercentageN, penaltyPercentageD,
+                 bonusPercentageN, bonusPercentageD],
             value: fee
         })
         const allowanceTx = await waitForTransaction({ hash })
@@ -203,8 +205,10 @@ export const getPoolInfo = async (poolId: bigint) => {
             isActive: false,
             isNFT: false,
             isSharedPool: false,
-            penaltyPercentage: BigInt(0),
-            bonusPercentage: BigInt(0),
+            bonusPercentageNumerator: BigInt(0),
+            bonusPercentageDenominator: BigInt(0),
+            penaltyPercentageNumerator: BigInt(0),
+            penaltyPercentageDenominator: BigInt(0),
         } as StakingPool;
     }
 }

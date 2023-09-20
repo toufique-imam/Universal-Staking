@@ -308,12 +308,22 @@ export const StakingContractABI = [
             },
             {
                 internalType: "uint256",
-                name: "penaltyPercentage",
+                name: "penaltyPercentageN",
                 type: "uint256"
             },
             {
                 internalType: "uint256",
-                name: "bonusPercentage",
+                name: "penaltyPercentageD",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "bonusPercentageN",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "bonusPercentageD",
                 type: "uint256"
             }
         ],
@@ -452,12 +462,22 @@ export const StakingContractABI = [
                     },
                     {
                         internalType: "uint256",
-                        name: "penaltyPercentage",
+                        name: "penaltyPercentageNumerator",
                         type: "uint256"
                     },
                     {
                         internalType: "uint256",
-                        name: "bonusPercentage",
+                        name: "penaltyPercentageDenominator",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "bonusPercentageNumerator",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "bonusPercentageDenominator",
                         type: "uint256"
                     }
                 ],
@@ -866,12 +886,22 @@ export const StakingContractABI = [
             },
             {
                 internalType: "uint256",
-                name: "penaltyPercentage",
+                name: "penaltyPercentageNumerator",
                 type: "uint256"
             },
             {
                 internalType: "uint256",
-                name: "bonusPercentage",
+                name: "penaltyPercentageDenominator",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "bonusPercentageNumerator",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "bonusPercentageDenominator",
                 type: "uint256"
             }
         ],
