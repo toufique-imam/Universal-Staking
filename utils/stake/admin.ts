@@ -1,5 +1,5 @@
 import { StakingContractABI } from "@/consts/ABI/StakingContractABI";
-import { writeContract, waitForTransaction, readContract, prepareWriteContract } from "wagmi/actions"
+import { writeContract, waitForTransaction } from "wagmi/actions"
 import { Address } from "viem";
 import { stakeTokenAddress } from "@/consts/contractAddresses";
 import { chains } from "../wagmi";

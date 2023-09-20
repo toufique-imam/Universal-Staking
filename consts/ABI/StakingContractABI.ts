@@ -283,6 +283,16 @@ export const StakingContractABI = [
             },
             {
                 internalType: "uint256",
+                name: "_stakingTokenDecimals",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "_rewardTokenDecimals",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
                 name: "_startDate",
                 type: "uint256"
             },
@@ -324,6 +334,11 @@ export const StakingContractABI = [
             {
                 internalType: "uint256",
                 name: "bonusPercentageD",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "poolPeriod",
                 type: "uint256"
             }
         ],
@@ -417,6 +432,16 @@ export const StakingContractABI = [
                     },
                     {
                         internalType: "uint256",
+                        name: "stakingTokenDecimals",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "rewardTokenDecimals",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
                         name: "rewardTokenAmount",
                         type: "uint256"
                     },
@@ -478,6 +503,11 @@ export const StakingContractABI = [
                     {
                         internalType: "uint256",
                         name: "bonusPercentageDenominator",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "poolPeriod",
                         type: "uint256"
                     }
                 ],
@@ -841,6 +871,16 @@ export const StakingContractABI = [
             },
             {
                 internalType: "uint256",
+                name: "stakingTokenDecimals",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "rewardTokenDecimals",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
                 name: "rewardTokenAmount",
                 type: "uint256"
             },
@@ -902,6 +942,11 @@ export const StakingContractABI = [
             {
                 internalType: "uint256",
                 name: "bonusPercentageDenominator",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "poolPeriod",
                 type: "uint256"
             }
         ],
