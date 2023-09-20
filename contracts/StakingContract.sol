@@ -77,7 +77,14 @@ contract StakingContract is
         uint256 amount
     );
 
-    // Constructor to set the contract owner
+/**
+ * @dev Constructor function
+ * @param _stakingFeePercentageN staking fee percentage nominator
+ * @param _stakingFeePercentageD staking fee percentage dominator
+ * @param _unstakingFeePercentageN unstaking fee percentage nominator
+ * @param _unstakingFeePercentageD unstaking fee percentage dominator
+ * @param _poolCreationFee fee to create a pool
+ */
     constructor(
         uint256 _stakingFeePercentageN,
         uint256 _stakingFeePercentageD,
@@ -91,8 +98,18 @@ contract StakingContract is
         unstakingFeePercentageDominator = _unstakingFeePercentageD;
         poolCreationFee = _poolCreationFee;
     }
-
-    // Function to create a staking pool
+/**
+ * @dev Function to create a new staking pool, pool creator pays a fee to create the pool
+ * @param _stakingAddress address of the staking token/nft 
+ * @param _rewardTokenAddress address of the reward token
+ * @param _startDate start date of the staking period
+ * @param _endDate end date of the staking period
+ * @param _maxStakePerWallet maximum amount of tokens/nft that can be staked per wallet
+ * @param isNFT true if the pool is for NFTs
+ * @param isSharedPool true if the pool is shared
+ * @param penaltyPercentage penalty percentage for early unstaking
+ * @param bonusPercentage bonus percentage for staking
+ */
     function createStakingPool(
         address _stakingAddress,
         address _rewardTokenAddress,
@@ -152,7 +169,11 @@ contract StakingContract is
 
         emit PoolCreated(poolId);
     }
-
+/**
+ * @dev Function for users to stake tokens
+ * @param _poolId pool id to stake in
+ * @param amount amount of tokens to stake
+ */
     function receiveToken(uint256 _poolId, uint256 amount) public nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         // Check if the pool is active
@@ -172,8 +193,11 @@ contract StakingContract is
         pool.rewardToken.transferFrom(msg.sender, address(this), amount);
         pool.rewardTokenAmount += amount;
     }
-
-    // Function for users to stake tokens
+/**
+ * @dev Function for users to stake tokens
+ * @param _poolId pool id to stake in
+ * @param _amount amount of tokens to stake
+ */
     function stakeToken(
         uint256 _poolId,
         uint256 _amount
@@ -242,8 +266,11 @@ contract StakingContract is
         // Emit stake event
         emit Staked(msg.sender, _poolId, _amount);
     }
-
-    // Function for users to stake tokens
+/**
+ * @dev Function for users to stake NFTs
+ * @param _poolId pool id to stake in
+ * @param tokenIds Array of token ids to stake
+ */
     function stakeNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
@@ -299,23 +326,34 @@ contract StakingContract is
             emit NFTStaked(msg.sender, _poolId, tokenId); 
         }
     }
-
-    // Function for users to unstake tokens
+/**
+ * @dev Function for users to unstake tokens
+ * @param _poolId pool id to unstake from
+ * @param _amount amount of tokens to unstake
+ */
     function unstakeToken(
         uint256 _poolId,
         uint256 _amount
     ) external whenNotPaused nonReentrant {
         _claimToken(_poolId, msg.sender, _amount, true);
     }
-
-    // Function for users to claim reward tokens
+/**
+ * @dev Function for users to claim reward tokens
+ * @param _poolId pool id to claim rewards from
+ * @param _amount amount of tokens to unstake
+ */
     function claimToken(
         uint256 _poolId,
         uint256 _amount
     ) external nonReentrant whenNotPaused {
         _claimToken(_poolId, msg.sender, _amount, false);
     }
-
+/**
+ * @dev Internal Function to unstake tokens
+ * @param _poolId pool id to unstake from
+ * @param account address of the user
+ * @param _amount amount of tokens to unstake
+ */
     function _unstakeToken(
         uint256 _poolId,
         address account,
@@ -360,7 +398,13 @@ contract StakingContract is
         });
         emit Unstaked(account, _poolId, _amount, penalty);
     }
-
+/**
+ * @dev Internal Function to claim reward tokens
+ * @param _poolId pool id to claim rewards from
+ * @param account address of the user
+ * @param _amount amount of tokens to unstake
+ * @param _unstake true if user wants to unstake
+ */
     function _claimToken(
         uint256 _poolId,
         address account,
@@ -413,21 +457,34 @@ contract StakingContract is
         }
         emit RewardClaimed(account, _poolId, earned);
     }
-// Function for users to unstake tokens
+    /**
+     * @dev Function for users to unstake NFTs
+     * @param _poolId pool id to unstake from
+     * @param tokenIds Array of token ids to unstake
+     */
     function unstakeNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
     ) external nonReentrant whenNotPaused {
         _claimNFT(_poolId, msg.sender, tokenIds, true);
     }
-// Function for users to claim reward tokens
+    /**
+     * @dev Function for users to claim reward tokens
+     * @param _poolId Pool id to claim rewards from
+     * @param tokenIds Array of token ids to claim rewards from
+     */
     function claimNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
     ) external nonReentrant whenNotPaused {
         _claimNFT(_poolId, msg.sender, tokenIds, false);
     }
-
+/**
+ * @dev Internal Function to unstake NFTs
+ * @param _poolId pool id to unstake from
+ * @param account address of the user
+ * @param tokenIds Array of token ids to unstake
+ */
     function _unstakeNFT(
         uint256 _poolId,
         address account,
@@ -462,7 +519,13 @@ contract StakingContract is
             );
         }
     }
-
+    /**
+     * @dev Internal Function to claim reward tokens
+     * @param _poolId pool id to claim rewards from
+     * @param account address of the user
+     * @param tokenIds Array of token ids to claim rewards from
+     * @param _unstake true if user wants to unstake
+     */
     function _claimNFT(
         uint256 _poolId,
         address account,
@@ -528,13 +591,19 @@ contract StakingContract is
         }
         emit RewardClaimed(account, _poolId, earned);
     }
-
-    // Function to check if a pool exists
+/**
+ * @dev Function to check if a pool exists
+ * @param _poolId pool id
+ * @return bool true if pool exists, false otherwise
+ */
     function poolExists(uint256 _poolId) external view returns (bool) {
         return _poolId < poolCount;
     }
-
-    // Function to check if a pool is active
+/**
+ * @dev Function to check if a pool is active
+ * @param _poolId pool id
+ * @return bool true if pool is active, false otherwise
+ */
     function poolIsActive(uint256 _poolId) external view returns (bool) {
         return
             stakingPools[_poolId].isActive &&
@@ -542,14 +611,22 @@ contract StakingContract is
             block.timestamp <= stakingPools[_poolId].endDate;
     }
 
-    // Function to get pool information
+/**
+ * @dev Function to get pool info
+ * @param _poolId pool id
+ * @return StakingPool struct
+ */
     function getPoolInfo(
         uint256 _poolId
     ) external view returns (StakingPool memory) {
         return stakingPools[_poolId];
     }
 
-
+/**
+ * @dev Function to get user's reward info for staked nfts
+ * @param _poolId pool id 
+ * @param tokenIds array of token ids
+ */
     function earningInfoNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
@@ -572,7 +649,11 @@ contract StakingContract is
         }
         return earned;
     }
-
+/**
+ * @dev Function to get user's reward info for staked tokens
+ * @param _poolId pool id
+ * @param account address of the user
+ */
     function earningInfoToken(
         uint256 _poolId,
         address account
@@ -591,7 +672,11 @@ contract StakingContract is
         }
         return earned;
     }
-
+/**
+ * @dev Changes pool status, can only be called by the creator of the pool.
+ * @param _poolId pool id
+ * @param status true for active and false for inactive
+ */
     function setPoolInactive(
         uint256 _poolId,
         bool status
@@ -614,6 +699,12 @@ contract StakingContract is
         pool.rewardTokenAmount = 0;
     }
 
+/**
+ * @dev Withdraws ERC20 tokens from contract, can only be called by the owner.
+ * can be used to withdraw staking and reward tokens
+ * amount of token to withdraw is tracked in tokenWithdrawBalances mapping
+ * @param token address of token to withdraw
+ */
     function withdrawToken(
         address token
     ) external onlyOwner whenPaused nonReentrant {
@@ -622,11 +713,15 @@ contract StakingContract is
         IERC20(token).transfer(msg.sender, amount);
         tokenWithdrawBalances[token] = 0;
     }
-
+/**
+ * @dev Withdraws ETH from contract, can only be called by the owner.
+ */
     function withdraw() external onlyOwner nonReentrant {
         payable(msg.sender).transfer(address(this).balance);
     }
-
+/**
+ * @dev pause and unpause contract, can only be called by the owner.
+ */
     function pause() external onlyOwner {
         _pause();
     }
@@ -634,7 +729,9 @@ contract StakingContract is
     function unpause() external onlyOwner {
         _unpause();
     }
-
+    /**
+     * @dev function to receive ERC721 tokens, when safeTransferFrom is called on ERC721 contract
+     */
     function onERC721Received(
         address,
         address,
@@ -643,7 +740,11 @@ contract StakingContract is
     ) external pure override returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector ^ this.stakeNFT.selector;
     }
-
+/**
+ * @dev set staking fee percentage, can only be called by the owner.
+ * @param _stakingFeePercentageN Staking fee percentage nominator
+ * @param _stakingFeePercentageD Staking fee percentage dominator
+ */
     function setStakingFeePercentage(
         uint256 _stakingFeePercentageN,
         uint256 _stakingFeePercentageD
@@ -655,7 +756,11 @@ contract StakingContract is
         stakingFeePercentageNominator = _stakingFeePercentageN;
         stakingFeePercentageDominator = _stakingFeePercentageD;
     }
-
+/**
+ * @dev set unstaking fee percentage, can only be called by the owner.
+ * @param _unstakingFeePercentageN Unstaking fee percentage nominator
+ * @param _unstakingFeePercentageD Unstaking fee percentage dominator
+ */
     function setUnstakingFeePercentage(
         uint256 _unstakingFeePercentageN,
         uint256 _unstakingFeePercentageD
