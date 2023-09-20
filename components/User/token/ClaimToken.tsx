@@ -7,11 +7,10 @@ import { claimToken } from '@/utils/stake/user';
 import { Typography } from '@mui/material';
 
 export default function ClaimTokenView() {
-    const [stakeAmount, setStakeAmount] = React.useState('');
     const [poolId, setPoolId] = React.useState('');
     const handleUnstake = async () => {
         toast.info('claim token');
-        const res = await claimToken(BigInt(poolId), parseEther(stakeAmount));
+        const res = await claimToken(BigInt(poolId));
         if (res == -1) {
             toast.error('claim token failed');
             return;
@@ -20,6 +19,10 @@ export default function ClaimTokenView() {
     }
     return (
         <div>
+            <Typography variant="h6" component="div" gutterBottom>
+                Pool id
+            </Typography>
+
             <TextField
                 autoFocus
                 margin="dense"
@@ -31,21 +34,7 @@ export default function ClaimTokenView() {
                 onChange={(e) => setPoolId(e.target.value)}
                 variant="standard"
             />
-            <Typography variant="h6" component="div" gutterBottom>
-                Claim Amount
-            </Typography>
             
-            <TextField
-                autoFocus
-                margin="dense"
-                id="stake_amount"
-                label="Claim Amount"
-                type="number"
-                fullWidth
-                value={stakeAmount}
-                onChange={(e) => setStakeAmount(e.target.value)}
-                variant="standard"
-            />
             <Button variant="outlined" onClick={handleUnstake}>
                 Claim
             </Button>

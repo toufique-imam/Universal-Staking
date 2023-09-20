@@ -180,8 +180,7 @@ contract StakingContract is
         require(pool.isActive, "This pool is not active");
         // Check if the staking period is valid
         require(
-            block.timestamp >= pool.startDate &&
-                block.timestamp <= pool.endDate,
+            block.timestamp <= pool.endDate,
             "Staking period is not valid"
         );
         // Make sure to approve the contract to spend the tokens beforehand
@@ -340,13 +339,12 @@ contract StakingContract is
 /**
  * @dev Function for users to claim reward tokens
  * @param _poolId pool id to claim rewards from
- * @param _amount amount of tokens to unstake
  */
     function claimToken(
-        uint256 _poolId,
-        uint256 _amount
+        uint256 _poolId
     ) external nonReentrant whenNotPaused {
-        _claimToken(_poolId, msg.sender, _amount, false);
+        // claim all rewards
+        _claimToken(_poolId, msg.sender,  stakedBalances[msg.sender][_poolId], false);
     }
 /**
  * @dev Internal Function to unstake tokens

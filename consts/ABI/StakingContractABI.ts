@@ -129,6 +129,25 @@ export const StakingContractABI = [
         anonymous: false,
         inputs: [
             {
+                indexed: false,
+                internalType: "uint256",
+                name: "poolId",
+                type: "uint256"
+            },
+            {
+                indexed: false,
+                internalType: "bool",
+                name: "status",
+                type: "bool"
+            }
+        ],
+        name: "PoolStatusChanged",
+        type: "event"
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
                 indexed: true,
                 internalType: "address",
                 name: "user",
@@ -242,11 +261,6 @@ export const StakingContractABI = [
             {
                 internalType: "uint256",
                 name: "_poolId",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "_amount",
                 type: "uint256"
             }
         ],
@@ -500,7 +514,7 @@ export const StakingContractABI = [
             },
             {
                 internalType: "address",
-                name: "from",
+                name: "",
                 type: "address"
             },
             {
@@ -858,6 +872,25 @@ export const StakingContractABI = [
             {
                 internalType: "uint256",
                 name: "bonusPercentage",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "address",
+                name: "",
+                type: "address"
+            }
+        ],
+        name: "tokenWithdrawBalances",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
                 type: "uint256"
             }
         ],

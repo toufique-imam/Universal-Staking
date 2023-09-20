@@ -112,14 +112,14 @@ export const unstakeNFT = async (poolId: bigint, tokenIds: Array<bigint>) => {
         return -1;
     }
 }
-export const claimToken = async (poolId: bigint, amount: bigint) => {
+export const claimToken = async (poolId: bigint) => {
     try {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
             functionName: "claimToken",
             chainId: chains[0].id,
-            args: [poolId, amount]
+            args: [poolId]
         })
         const allowanceTx = await waitForTransaction({ hash })
         console.log(allowanceTx)
