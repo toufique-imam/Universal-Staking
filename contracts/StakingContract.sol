@@ -15,10 +15,8 @@ contract StakingContract is
     IERC721Receiver
 {
     // Structure to represent staking pools
-    uint256 stakingFeePercentageDenominator;
-    uint256 stakingFeePercentageNumerator;
-    uint256 unstakingFeePercentageDenominator;
-    uint256 unstakingFeePercentageNumerator;
+    uint256 stakingFeePacked;
+    uint256 unstakingFeePacked;
     uint256 poolCreationFee;
 
     struct StakingPool {
@@ -93,10 +91,8 @@ contract StakingContract is
         uint256 _unstakingFeePercentageD,
         uint256 _poolCreationFee
     ) {
-        stakingFeePercentageNumerator = _stakingFeePercentageN;
-        stakingFeePercentageDenominator = _stakingFeePercentageD;
-        unstakingFeePercentageNumerator = _unstakingFeePercentageN;
-        unstakingFeePercentageDenominator = _unstakingFeePercentageD;
+        stakingFeePacked = packNumeratorDenominator(_stakingFeePercentageN, _stakingFeePercentageD);
+        unstakingFeePacked = packNumeratorDenominator(_unstakingFeePercentageN, _unstakingFeePercentageD);
         poolCreationFee = _poolCreationFee;
     }
 
@@ -253,7 +249,8 @@ contract StakingContract is
             address(this),
             _amount
         );
-
+        //unpack staking fee
+        (uint256 stakingFeePercentageNumerator, uint256 stakingFeePercentageDenominator) = unpackNumeratorDenominator(stakingFeePacked);
         // Calculate staking fee
         uint256 stakingFee = (_amount * stakingFeePercentageNumerator) /
             stakingFeePercentageDenominator;
@@ -394,6 +391,8 @@ contract StakingContract is
             block.timestamp >= pool.startDate,
             "Unstaking is not allowed before the staking period starts"
         );
+        //unpack unstaking fee
+        (uint256 unstakingFeePercentageNumerator, uint256 unstakingFeePercentageDenominator) = unpackNumeratorDenominator(unstakingFeePacked);
         // Calculate unstaking fee
         uint256 unstakingFee = (_amount * unstakingFeePercentageNumerator) /
             unstakingFeePercentageDenominator;
@@ -403,7 +402,7 @@ contract StakingContract is
             penalty =_amount / pool.penalty;
         }
         // Calculate net unstaked amount
-        uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
+        uint256 netUnstakedAmount = _amount - unstakingFee - penalty; 
         // update token withdraw balance
         tokenWithdrawBalances[pool.stakingAddress] += unstakingFee + penalty;
 
@@ -610,6 +609,8 @@ contract StakingContract is
             if (pool.endDate < block.timestamp) {
                 penaltyFee = (earned) / pool.penalty;
             }
+            //unpack unstaking fee
+            (uint256 unstakingFeePercentageNumerator, uint256 unstakingFeePercentageDenominator) = unpackNumeratorDenominator(unstakingFeePacked);
             // calculate unstaking fee
             unstakingFee = (earned * unstakingFeePercentageNumerator) / unstakingFeePercentageDenominator;
         }
@@ -654,6 +655,13 @@ contract StakingContract is
         } else {
             return amount * (10 ** (targetDecimals - currentDecimals));
         }
+    }
+
+    function packNumeratorDenominator(uint256 numerator, uint256 denominator) internal pure returns (uint256) {
+        return (numerator << 128) | denominator;
+    }
+    function unpackNumeratorDenominator(uint256 packed) internal pure returns (uint256, uint256) {
+        return (packed >> 128, packed & 0xffffffffffffffffffffffffffffffff);
     }
     /**
      * @dev Function to get pool info
@@ -753,8 +761,7 @@ contract StakingContract is
             _stakingFeePercentageN < _stakingFeePercentageD,
             "Invalid staking fee percentage"
         );
-        stakingFeePercentageNumerator = _stakingFeePercentageN;
-        stakingFeePercentageDenominator = _stakingFeePercentageD;
+        stakingFeePacked = packNumeratorDenominator(_stakingFeePercentageN, _stakingFeePercentageD);
     }
 
     /**
@@ -770,8 +777,7 @@ contract StakingContract is
             _unstakingFeePercentageN < _unstakingFeePercentageD,
             "Invalid unstaking fee percentage"
         );
-        unstakingFeePercentageNumerator = _unstakingFeePercentageN;
-        unstakingFeePercentageDenominator = _unstakingFeePercentageD;
+        unstakingFeePacked = packNumeratorDenominator(_unstakingFeePercentageN, _unstakingFeePercentageD);
     }
 
     function getStakingFeePercentage()
@@ -779,7 +785,7 @@ contract StakingContract is
         view
         returns (uint256, uint256)
     {
-        return (stakingFeePercentageNumerator, stakingFeePercentageDenominator);
+        return unpackNumeratorDenominator(stakingFeePacked);
     }
 
     function getUnstakingFeePercentage()
@@ -787,10 +793,7 @@ contract StakingContract is
         view
         returns (uint256, uint256)
     {
-        return (
-            unstakingFeePercentageNumerator,
-            unstakingFeePercentageDenominator
-        );
+        return unpackNumeratorDenominator(unstakingFeePacked);
     }
 
     function setPoolCreationFee(uint256 _poolCreationFee) external onlyOwner {
