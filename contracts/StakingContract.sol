@@ -15,11 +15,11 @@ contract StakingContract is
     IERC721Receiver
 {
     // Structure to represent staking pools
-    uint256 stakingFeePercentageDenominator;
-    uint256 stakingFeePercentageNumerator;
-    uint256 unstakingFeePercentageDenominator;
-    uint256 unstakingFeePercentageNumerator;
-    uint256 poolCreationFee;
+    uint256 stakingFeePercentageDenominator = 1;
+    uint256 stakingFeePercentageNumerator = 100;
+    uint256 unstakingFeePercentageDenominator = 2;
+    uint256 unstakingFeePercentageNumerator = 100;
+    uint256 poolCreationFee = 0.001 ether;
 
     struct StakingPool {
         address stakingAddress;
@@ -79,26 +79,9 @@ contract StakingContract is
         uint256 amount
     );
 
-    /**
-     * @dev Constructor function
-     * @param _stakingFeePercentageN staking fee percentage nominator
-     * @param _stakingFeePercentageD staking fee percentage dominator
-     * @param _unstakingFeePercentageN unstaking fee percentage nominator
-     * @param _unstakingFeePercentageD unstaking fee percentage dominator
-     * @param _poolCreationFee fee to create a pool
-     */
     constructor(
-        uint256 _stakingFeePercentageN,
-        uint256 _stakingFeePercentageD,
-        uint256 _unstakingFeePercentageN,
-        uint256 _unstakingFeePercentageD,
-        uint256 _poolCreationFee
     ) {
-        stakingFeePercentageNumerator = _stakingFeePercentageN;
-        stakingFeePercentageDenominator = _stakingFeePercentageD;
-        unstakingFeePercentageNumerator = _unstakingFeePercentageN;
-        unstakingFeePercentageDenominator = _unstakingFeePercentageD;
-        poolCreationFee = _poolCreationFee;
+
     }
 
     /**
