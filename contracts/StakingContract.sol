@@ -31,10 +31,8 @@ contract StakingContract is
         address creator;
         uint256 maxStakePerWallet;
         uint8 isActive_isNFT_isSharedPool;
-        uint256 penaltyPercentageNumerator;
-        uint256 penaltyPercentageDenominator;
-        uint256 bonusPercentageNumerator;
-        uint256 bonusPercentageDenominator;
+        uint256 penalty;
+        uint256 bonus;
         uint256 poolPeriod;
     }
     struct Stake {
@@ -111,10 +109,8 @@ contract StakingContract is
      * @param _maxStakePerWallet maximum amount of tokens/nft that can be staked per wallet
      * @param isNFT true if the pool is for NFTs
      * @param isSharedPool true if the pool is shared
-     * @param penaltyPercentageN penalty Numerator for early unstaking
-     * @param penaltyPercentageD penalty Denominator for early unstaking
-     * @param bonusPercentageN bonus Numerator for shared pool
-     * @param bonusPercentageD bonus Denominator for shared pool
+     * @param penalty penalty Numerator for early unstaking
+     * @param bonus bonus Denominator for shared pool
      * @param poolPeriod pool period in seconds
      */
     function createStakingPool(
@@ -127,10 +123,8 @@ contract StakingContract is
         uint256 _maxStakePerWallet,
         bool isNFT,
         bool isSharedPool,
-        uint256 penaltyPercentageN,
-        uint256 penaltyPercentageD,
-        uint256 bonusPercentageN,
-        uint256 bonusPercentageD,
+        uint256 penalty,
+        uint256 bonus,
         uint256 poolPeriod
     ) external payable whenNotPaused nonReentrant {
         require(msg.value >= poolCreationFee, "Insufficient fee");
@@ -150,14 +144,6 @@ contract StakingContract is
         require(
             _maxStakePerWallet > 0,
             "Maximum stake per wallet cannot be zero"
-        );
-        require(
-            penaltyPercentageN < penaltyPercentageD,
-            "Penalty Numerator cannot be greater than Denominator"
-        );
-        require(
-            bonusPercentageN < bonusPercentageD,
-            "Bonus Numerator cannot be greater than Denominator"
         );
         require(
             poolPeriod > 0,
@@ -183,10 +169,8 @@ contract StakingContract is
             msg.sender,
             _maxStakePerWallet,
             mask,
-            penaltyPercentageN,
-            penaltyPercentageD,
-            bonusPercentageN,
-            bonusPercentageD, 
+            penalty,
+            bonus,
             poolPeriod
         );
         // isActivePool[poolId] = true;
