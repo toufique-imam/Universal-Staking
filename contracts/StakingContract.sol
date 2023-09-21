@@ -62,9 +62,6 @@ contract StakingContract is
     mapping(address => mapping(uint256 => uint256)) public stakedBalances;
     mapping(address => uint256) public tokenWithdrawBalances;
 
-    // Mapping to track user rewards
-    mapping(address => mapping(uint256 => uint256)) public rewards;
-
     event PoolCreated(uint256 poolId);
     event PoolStatusChanged(uint256 poolId, bool status);
     event Staked(address indexed user, uint256 indexed poolId, uint256 amount);
