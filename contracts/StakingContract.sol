@@ -400,9 +400,7 @@ contract StakingContract is
         // Calculate penalty for early unstaking
         uint256 penalty = 0;
         if (block.timestamp < pool.endDate) {
-            penalty =
-                (_amount * pool.penaltyPercentageNumerator) /
-                pool.penaltyPercentageDenominator;
+            penalty =_amount / pool.penalty;
         }
         // Calculate net unstaked amount
         uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
@@ -460,8 +458,8 @@ contract StakingContract is
         uint256 _periodStaked = (block.timestamp - staked.timestamp) / pool.poolPeriod;
         if ((pool.isActive_isNFT_isSharedPool & 4)>0) {
             //reward tokens distributed based on bonus percentage and amount staked
-            earned = _tokenAmountInRewardDecimals * pool.bonusPercentageNumerator * _periodStaked;
-            earned = earned / pool.bonusPercentageDenominator;
+            earned = _tokenAmountInRewardDecimals * _periodStaked;
+            earned = earned / pool.bonus;
         } else {
             //reward tokens distributed based on total reward tokens and amount staked
             uint256 totalPoolRewardPerPeriod = (pool.poolPeriod * totalRewardsInPool[_poolId]) / (pool.endDate - pool.startDate);
@@ -591,7 +589,7 @@ contract StakingContract is
             uint256 _periodStaked = (block.timestamp - staked.timestamp) / pool.poolPeriod;
             if ((pool.isActive_isNFT_isSharedPool & 4)>0) {
                 // reward tokens distributed based on bonus percentage and amount staked
-                earned = earned + (pool.bonusPercentageNumerator * _periodStaked) / pool.bonusPercentageDenominator;
+                earned = earned + (_periodStaked) / pool.bonus;
             } else {
                 // reward tokens distributed based on total reward tokens and amount staked
                 uint256 totalPoolRewardPerPeriod = (pool.poolPeriod * totalRewardsInPool[_poolId]) / (pool.endDate - pool.startDate);
@@ -610,7 +608,7 @@ contract StakingContract is
         if (_unstake) {
             // calculate penalty
             if (pool.endDate < block.timestamp) {
-                penaltyFee = (earned * pool.penaltyPercentageNumerator) / pool.penaltyPercentageDenominator;
+                penaltyFee = (earned) / pool.penalty;
             }
             // calculate unstaking fee
             unstakingFee = (earned * unstakingFeePercentageNumerator) / unstakingFeePercentageDenominator;
