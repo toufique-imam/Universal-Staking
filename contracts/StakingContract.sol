@@ -172,12 +172,12 @@ contract StakingContract is
      * @param _poolId pool id to stake in
      * @param amount amount of tokens to stake
      */
-    function receiveToken(uint256 _poolId, uint256 amount) public nonReentrant {
+    function depositRewardToken(uint256 _poolId, uint256 amount) public nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
         // Check if the staking period is valid
-        require(block.timestamp <= pool.endDate, "Staking period is not valid");
+        require(block.timestamp <= pool.endDate, "Staking Ended, cannot stake.");
         // Make sure to approve the contract to spend the tokens beforehand
         require(
             pool.rewardToken.allowance(msg.sender, address(this)) >= amount,
@@ -206,17 +206,15 @@ contract StakingContract is
         require(
             block.timestamp >= pool.startDate &&
                 block.timestamp <= pool.endDate,
-            "Staking period is not valid"
+            "The pool isn't active yet."
         );
-        // Check if the user is not the creator of the pool
-        require(msg.sender != pool.creator, "Creator cannot stake");
         // Check if the pool has any reward tokens
         require(pool.rewardTokenAmount > 0, "No reward token in the pool");
         // Check if the user's staked balance doesn't exceed the maximum allowed
         require(
             stakedBalances[msg.sender][_poolId] + _amount <=
                 pool.maxStakePerWallet,
-            "Exceeded maximum stake limit"
+            "Maximum Stake Limit exceeded."
         );
         // Make sure to approve the contract to spend the tokens beforehand
         require(
@@ -283,13 +281,11 @@ contract StakingContract is
         require(pool.isActive, "This pool is not active");
         // Check if the pool is NFT
         require(pool.isNFT, "This function is for NFT stake only");
-        // Check if the user is not the creator of the pool
-        require(msg.sender != pool.creator, "Creator cannot stake");
         // Check if the staking period is valid
         require(
             block.timestamp >= pool.startDate &&
                 block.timestamp <= pool.endDate,
-            "Staking period is not valid"
+            "The pool isn't active yet."
         );
         // Check if the pool has any reward tokens
         require(pool.rewardTokenAmount > 0, "No reward token in the pool");
@@ -299,7 +295,7 @@ contract StakingContract is
         require(
             stakedBalances[msg.sender][_poolId] + tokenIds.length <=
                 pool.maxStakePerWallet,
-            "Exceeded maximum stake limit"
+            "Maximum Stake Limit exceeded."
         );
 
         IERC721 nft = IERC721(pool.stakingAddress);
@@ -640,6 +636,9 @@ contract StakingContract is
             unstakingFee =
                 (earned * unstakingFeePercentageNumerator) /
                 unstakingFeePercentageDenominator;
+            tokenWithdrawBalances[address(pool.rewardToken)] +=
+                penaltyFee +
+                unstakingFee;
         }
         // calculate net earned amount
         earned = earned - penaltyFee - unstakingFee;
@@ -651,13 +650,6 @@ contract StakingContract is
             pool.rewardToken.transfer(account, earned);
 
             stakingPools[_poolId].rewardTokenAmount -= earned;
-            stakingPools[_poolId].totalStaked -= tokenIds.length;
-
-            stakedBalances[account][_poolId] -= tokenIds.length;
-            // update token withdraw balance
-            tokenWithdrawBalances[address(pool.rewardToken)] +=
-                penaltyFee +
-                unstakingFee;
         }
         if (_unstake) {
             _unstakeNFT(_poolId, account, tokenIds);
@@ -720,7 +712,7 @@ contract StakingContract is
     function earningInfoNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
-    ) external view returns (uint256) {
+    ) public view returns (uint256) {
         uint256 tokenId;
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
@@ -767,7 +759,7 @@ contract StakingContract is
     function earningInfoToken(
         uint256 _poolId,
         address account
-    ) external view returns (uint256) {
+    ) public view returns (uint256) {
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
         if (pool.isNFT == true) return earned;
@@ -819,7 +811,7 @@ contract StakingContract is
      * @param _poolId pool id
      * @param status true for active and false for inactive
      */
-    function setPoolInactive(
+    function setPoolStatus(
         uint256 _poolId,
         bool status
     ) external nonReentrant {
@@ -870,13 +862,13 @@ contract StakingContract is
 
     /**
      * @dev pause and unpause contract, can only be called by the owner.
+     * @param state true for pause and false for unpause
      */
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
+    function changeContractState(bool state) external onlyOwner {
+        if(state == true)
+            _pause();
+        else
+            _unpause();
     }
 
     /**
