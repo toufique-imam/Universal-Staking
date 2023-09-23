@@ -1036,6 +1036,14 @@ contract StakingContract is
             "Claiming is not allowed before the staking period starts"
         );
         Stake memory staked = vaults[account][_poolId];
+        if(staked.timestamp >= pool.endDate){
+            //already claimed
+            if (_unstake) {
+                // unstake tokens if user wants to unstake
+                _unstakeToken(_poolId, account, _amount);
+            }
+            return;
+        }
         require(staked.timestamp < pool.endDate, "Already claimed");
         // Check if the user has staked tokens
         if (staked.owner == address(0) || staked.tokenId == 0) return;
@@ -1080,6 +1088,8 @@ contract StakingContract is
                 _periodStaked;
             earned = earned / pool.bonusPercentageDenominator;
         }
+        
+        require(_unstake || earned > 0, "nothing to unstake or claim");
         // update vault
         vaults[account][_poolId] = Stake({
             poolId: _poolId,
@@ -1087,6 +1097,7 @@ contract StakingContract is
             timestamp: block.timestamp, // update timestamp to current time
             owner: account
         });
+
         // transfer reward tokens to user
         if (earned > 0) {
             require(
@@ -1247,7 +1258,7 @@ contract StakingContract is
         }
         // calculate net earned amount
         earned = earned - penaltyFee - unstakingFee;
-        require(!_unstake || earned > 0, "nothing to unstake or claim");
+        require(_unstake || earned > 0, "nothing to unstake or claim");
         if (earned > 0) {
             require(
                 pool.rewardTokenAmount >= earned,
