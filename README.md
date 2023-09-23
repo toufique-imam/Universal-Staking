@@ -39,4 +39,5 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 
 ## RemixD
 - npm install --global @remix-project/remixd
-- npx remixd -s . -u https://remix.ethereum.org/
+- 
+npx remixd -s . -u https://remix.ethereum.org/

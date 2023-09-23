@@ -172,12 +172,18 @@ contract StakingContract is
      * @param _poolId pool id to stake in
      * @param amount amount of tokens to stake
      */
-    function depositRewardToken(uint256 _poolId, uint256 amount) public nonReentrant {
+    function depositRewardToken(
+        uint256 _poolId,
+        uint256 amount
+    ) public nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
         // Check if the staking period is valid
-        require(block.timestamp <= pool.endDate, "Staking Ended, cannot stake.");
+        require(
+            block.timestamp <= pool.endDate,
+            "Staking Ended, cannot stake."
+        );
         // Make sure to approve the contract to spend the tokens beforehand
         require(
             pool.rewardToken.allowance(msg.sender, address(this)) >= amount,
@@ -431,7 +437,7 @@ contract StakingContract is
             "Claiming is not allowed before the staking period starts"
         );
         Stake memory staked = vaults[account][_poolId];
-        require(staked.timestamp > pool.endDate, "Already claimed");
+        require(staked.timestamp < pool.endDate, "Already claimed");
         // Check if the user has staked tokens
         if (staked.owner == address(0) || staked.tokenId == 0) return;
 
@@ -642,6 +648,7 @@ contract StakingContract is
         }
         // calculate net earned amount
         earned = earned - penaltyFee - unstakingFee;
+        require(!_unstake || earned > 0, "nothing to unstake or claim");
         if (earned > 0) {
             require(
                 pool.rewardTokenAmount >= earned,
@@ -811,10 +818,7 @@ contract StakingContract is
      * @param _poolId pool id
      * @param status true for active and false for inactive
      */
-    function setPoolStatus(
-        uint256 _poolId,
-        bool status
-    ) external nonReentrant {
+    function setPoolStatus(uint256 _poolId, bool status) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         require(
             pool.creator == msg.sender,
@@ -865,10 +869,8 @@ contract StakingContract is
      * @param state true for pause and false for unpause
      */
     function changeContractState(bool state) external onlyOwner {
-        if(state == true)
-            _pause();
-        else
-            _unpause();
+        if (state == true) _pause();
+        else _unpause();
     }
 
     /**
