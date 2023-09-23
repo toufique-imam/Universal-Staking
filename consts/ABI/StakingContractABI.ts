@@ -1,32 +1,6 @@
 export const StakingContractABI = [
     {
-        inputs: [
-            {
-                internalType: "uint256",
-                name: "_stakingFeePercentageN",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "_stakingFeePercentageD",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "_unstakingFeePercentageN",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "_unstakingFeePercentageD",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "_poolCreationFee",
-                type: "uint256"
-            }
-        ],
+        inputs: [],
         stateMutability: "nonpayable",
         type: "constructor"
     },
@@ -241,6 +215,19 @@ export const StakingContractABI = [
     {
         inputs: [
             {
+                internalType: "bool",
+                name: "state",
+                type: "bool"
+            }
+        ],
+        name: "changeContractState",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
                 internalType: "uint256",
                 name: "_poolId",
                 type: "uint256"
@@ -267,6 +254,35 @@ export const StakingContractABI = [
         name: "claimToken",
         outputs: [],
         stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "amount",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "currentDecimals",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "targetDecimals",
+                type: "uint256"
+            }
+        ],
+        name: "convertAmountToDecimal",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "pure",
         type: "function"
     },
     {
@@ -345,6 +361,24 @@ export const StakingContractABI = [
         name: "createStakingPool",
         outputs: [],
         stateMutability: "payable",
+        type: "function"
+    },
+    {
+        inputs: [
+            {
+                internalType: "uint256",
+                name: "_poolId",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "amount",
+                type: "uint256"
+            }
+        ],
+        name: "depositRewardToken",
+        outputs: [],
+        stateMutability: "nonpayable",
         type: "function"
     },
     {
@@ -604,13 +638,6 @@ export const StakingContractABI = [
     },
     {
         inputs: [],
-        name: "pause",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
-        inputs: [],
         name: "paused",
         outputs: [
             {
@@ -674,52 +701,10 @@ export const StakingContractABI = [
         type: "function"
     },
     {
-        inputs: [
-            {
-                internalType: "uint256",
-                name: "_poolId",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "amount",
-                type: "uint256"
-            }
-        ],
-        name: "receiveToken",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
         inputs: [],
         name: "renounceOwnership",
         outputs: [],
         stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
-        inputs: [
-            {
-                internalType: "address",
-                name: "",
-                type: "address"
-            },
-            {
-                internalType: "uint256",
-                name: "",
-                type: "uint256"
-            }
-        ],
-        name: "rewards",
-        outputs: [
-            {
-                internalType: "uint256",
-                name: "",
-                type: "uint256"
-            }
-        ],
-        stateMutability: "view",
         type: "function"
     },
     {
@@ -748,7 +733,7 @@ export const StakingContractABI = [
                 type: "bool"
             }
         ],
-        name: "setPoolInactive",
+        name: "setPoolStatus",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
@@ -981,13 +966,6 @@ export const StakingContractABI = [
             }
         ],
         name: "transferOwnership",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
-        inputs: [],
-        name: "unpause",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"

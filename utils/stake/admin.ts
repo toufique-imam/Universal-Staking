@@ -44,8 +44,9 @@ export const pauseStake = async () => {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "pause",
-            chainId: chains[0].id
+            functionName: "changeContractState",
+            chainId: chains[0].id,
+            args: [true]
         })
         const tx = await waitForTransaction({ hash })
         console.log(tx)
@@ -60,8 +61,9 @@ export const unpauseStake = async () => {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "unpause",
-            chainId: chains[0].id
+            functionName: "changeContractState",
+            chainId: chains[0].id,
+            args: [false]
         })
         const tx = await waitForTransaction({ hash })
         console.log(tx)
