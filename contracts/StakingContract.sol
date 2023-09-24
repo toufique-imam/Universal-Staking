@@ -47,6 +47,11 @@ contract StakingContract is
         uint256 timestamp;
         address owner;
     }
+    enum ClaimState {
+        STAKE,
+        UNSTAKE,
+        CLAIM
+    }
 
     // Mapping to track staking pools
     mapping(uint256 => StakingPool) public stakingPools;
@@ -184,6 +189,8 @@ contract StakingContract is
             block.timestamp <= pool.endDate,
             "Staking Ended, cannot stake."
         );
+        require(amount > 0, "Amount cannot be zero");
+        require(msg.sender == pool.creator, "Only creator can deposit tokens");
         // Make sure to approve the contract to spend the tokens beforehand
         require(
             pool.rewardToken.allowance(msg.sender, address(this)) >= amount,
@@ -235,7 +242,7 @@ contract StakingContract is
                 _poolId,
                 msg.sender,
                 stakedBalances[msg.sender][_poolId],
-                false
+                ClaimState.STAKE
             );
         }
 
@@ -342,7 +349,7 @@ contract StakingContract is
         uint256 _poolId,
         uint256 _amount
     ) external whenNotPaused nonReentrant {
-        _claimToken(_poolId, msg.sender, _amount, true);
+        _claimToken(_poolId, msg.sender, _amount, ClaimState.UNSTAKE);
     }
 
     /**
@@ -355,7 +362,7 @@ contract StakingContract is
             _poolId,
             msg.sender,
             stakedBalances[msg.sender][_poolId],
-            false
+            ClaimState.CLAIM
         );
     }
 
@@ -419,13 +426,13 @@ contract StakingContract is
      * @param _poolId pool id to claim rewards from
      * @param account address of the user
      * @param _amount amount of tokens to unstake
-     * @param _unstake true if user wants to unstake
+     * @param state -1 if no check, 0 if claim only, 1 if unstake + claim
      */
     function _claimToken(
         uint256 _poolId,
         address account,
         uint256 _amount,
-        bool _unstake
+        ClaimState state
     ) internal {
         StakingPool memory pool = stakingPools[_poolId];
         // Check if the pool is active
@@ -439,7 +446,7 @@ contract StakingContract is
         Stake memory staked = vaults[account][_poolId];
         if(staked.timestamp >= pool.endDate){
             //already claimed
-            if (_unstake) {
+            if (state == ClaimState.UNSTAKE) {
                 // unstake tokens if user wants to unstake
                 _unstakeToken(_poolId, account, _amount);
             }
@@ -489,8 +496,10 @@ contract StakingContract is
                 _periodStaked;
             earned = earned / pool.bonusPercentageDenominator;
         }
-        
-        require(_unstake || earned > 0, "nothing to unstake or claim");
+        //if user want to unstake with reward 0 fall through
+        //if user is staking but earned amount is 0 fall through
+        //if user wants to claim but his amount isn't 0 fail
+        require(state == ClaimState.UNSTAKE || state == ClaimState.STAKE || earned > 0, "nothing to unstake or claim");
         // update vault
         vaults[account][_poolId] = Stake({
             poolId: _poolId,
@@ -508,7 +517,7 @@ contract StakingContract is
             pool.rewardToken.transfer(account, earned);
             stakingPools[_poolId].rewardTokenAmount -= earned;
         }
-        if (_unstake) {
+        if (ClaimState.UNSTAKE == state) {
             // unstake tokens if user wants to unstake
             _unstakeToken(_poolId, account, _amount);
         }
@@ -659,6 +668,7 @@ contract StakingContract is
         }
         // calculate net earned amount
         earned = earned - penaltyFee - unstakingFee;
+        // if _unstaking then earning can be zero
         require(_unstake || earned > 0, "nothing to unstake or claim");
         if (earned > 0) {
             require(
