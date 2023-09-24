@@ -278,7 +278,7 @@ export const setPoolInactive = async (poolId: bigint, status: boolean) => {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "setPoolInactive",
+            functionName: "setPoolStatus",
             chainId: chains[0].id,
             args: [poolId, status]
         })
@@ -326,7 +326,7 @@ export const receiveToken = async (poolId: bigint, amount: bigint) => {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "receiveToken",
+            functionName: "depositRewardToken",
             chainId: chains[0].id,
             args: [poolId, amount]
         })
