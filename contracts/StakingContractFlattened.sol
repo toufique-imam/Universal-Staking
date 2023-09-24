@@ -1444,7 +1444,7 @@ contract StakingContract is
      * @param _poolId pool id
      * @param status true for active and false for inactive
      */
-    function setPoolStatus(uint256 _poolId, bool status) external nonReentrant {
+    function setPoolisActiveStatus(uint256 _poolId, bool status) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         require(
             pool.creator == msg.sender,
@@ -1459,7 +1459,7 @@ contract StakingContract is
      * @dev withdraws reward tokens from contract, can only be called by the creator of the pool.
      * @param _poolId pool id
      */
-    function withdrawStake(uint256 _poolId) external nonReentrant {
+    function WithdrawRWDcreator(uint256 _poolId) external nonReentrant {
         StakingPool storage pool = stakingPools[_poolId];
         require(pool.creator == msg.sender, "Only creator can withdraw");
         require(
