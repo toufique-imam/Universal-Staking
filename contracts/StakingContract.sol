@@ -27,7 +27,6 @@ contract StakingContract is
         uint256 stakingTokenDecimals;
         uint256 rewardTokenDecimals;
         uint256 rewardTokenAmount;
-        uint256 totalStaked;
         uint256 startDate;
         uint256 endDate;
         address creator;
@@ -185,7 +184,6 @@ contract StakingContract is
             _stakingTokenDecimals,
             _rewardTokenDecimals,
             amount,
-            0,
             _startDate,
             _endDate,
             msg.sender,
@@ -304,7 +302,11 @@ contract StakingContract is
 
         // Update user's staked balance
         stakedBalances[msg.sender][_poolId] += netStakedAmount;
-        stakingPools[_poolId].totalStaked += netStakedAmount;
+        // stakingPools[_poolId].totalStaked += netStakedAmount;
+        
+        //his stake will start from next timestamp
+        stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] += netStakedAmount;
+
         // Update total staked tokens in the pool
         uint256 totalUserStaked = stakedBalances[msg.sender][_poolId];
         // Update user's vault
@@ -366,6 +368,7 @@ contract StakingContract is
             // Transfer staking tokens from the user to the contract
             nft.safeTransferFrom(msg.sender, address(this), tokenId);
             // Update user's staked balance
+            stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] += 1;
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
                 tokenId: tokenId,
@@ -376,7 +379,7 @@ contract StakingContract is
         }
         // Update total staked tokens in the pool
         stakedBalances[msg.sender][_poolId] += tokenIds.length;
-        stakingPools[_poolId].totalStaked += tokenIds.length;
+        // stakingPools[_poolId].totalStaked += tokenIds.length;
     }
 
     /**
@@ -449,7 +452,9 @@ contract StakingContract is
         IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
         // Update user's staked balance
         stakedBalances[account][_poolId] -= _amount;
-        stakingPools[_poolId].totalStaked -= _amount;
+        // stakingPools[_poolId].totalStaked -= _amount;
+        // his amount will reflect in the total pool amount next time 
+        stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] -= _amount;
         // update vault
         vaults[account][_poolId] = Stake({
             poolId: _poolId,
@@ -632,9 +637,11 @@ contract StakingContract is
             "Unstaking is not allowed before the staking period starts"
         );
         // update total staked tokens in the pool
-        stakingPools[_poolId].totalStaked -= tokenIds.length;
+        // stakingPools[_poolId].totalStaked -= tokenIds.length;
         // update user's staked balance
         stakedBalances[account][_poolId] -= tokenIds.length;
+        
+        stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] -= tokenIds.length;
 
         for (uint i = 0; i < tokenIds.length; i++) {
             tokenId = tokenIds[i];
