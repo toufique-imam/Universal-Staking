@@ -51,6 +51,8 @@ contract StakingContract is
 
     // Mapping to track staking pools
     mapping(uint256 => StakingPool) public stakingPools;
+    mapping(uint256 => uint256) public reservedRewardsForStakePool;
+
     //maps how the user stake/unstake effects on periods
     // maps to address -> poolId -> period -> amount
     mapping(uint256 => mapping(uint256 => uint256)) stakePoolHelper;
@@ -226,9 +228,7 @@ contract StakingContract is
         uint256 stakingTokenDecimals,
         uint256 rewardTokenDecimals
     ) public pure returns (uint256) {
-        uint256 totalRewardAmount = ((_endDate - _startDate) *
-            bonusPercentageN *
-            _maxTotalStake) / (bonusPercentageD * poolPeriod);
+        uint256 totalRewardAmount = ((_endDate - _startDate) * bonusPercentageN * _maxTotalStake) / (bonusPercentageD * poolPeriod);
 
         return
             convertAmountToDecimal(
@@ -299,7 +299,7 @@ contract StakingContract is
 
         // Calculate net staked amount
         uint256 netStakedAmount = _amount - stakingFee;
-
+    
         // Update user's staked balance
         stakedBalances[msg.sender][_poolId] += netStakedAmount;
         // stakingPools[_poolId].totalStaked += netStakedAmount;
@@ -316,7 +316,9 @@ contract StakingContract is
             timestamp: block.timestamp,
             owner: msg.sender
         });
-
+        // calculate earned amount if user staked to endtime
+        reservedRewardsForStakePool[_poolId] += _earningInfoToken(_poolId, msg.sender, pool.endDate);
+        
         // Emit stake event
         emit Staked(msg.sender, _poolId, _amount);
     }
@@ -379,6 +381,7 @@ contract StakingContract is
         }
         // Update total staked tokens in the pool
         stakedBalances[msg.sender][_poolId] += tokenIds.length;
+        reservedRewardsForStakePool[_poolId] += _earningInfoNFT(_poolId, tokenIds, pool.endDate);
         // stakingPools[_poolId].totalStaked += tokenIds.length;
     }
 
@@ -443,6 +446,9 @@ contract StakingContract is
                 (_amount * pool.penaltyPercentageNumerator) /
                 pool.penaltyPercentageDenominator;
         }
+        // update reserved rewards
+        reservedRewardsForStakePool[_poolId] -= _earningInfoToken(_poolId, account, pool.endDate);
+
         // Calculate net unstaked amount
         uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
         // update token withdraw balance
@@ -450,6 +456,7 @@ contract StakingContract is
 
         // Transfer staking tokens back to the user
         IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
+
         // Update user's staked balance
         stakedBalances[account][_poolId] -= _amount;
         // stakingPools[_poolId].totalStaked -= _amount;
@@ -584,7 +591,9 @@ contract StakingContract is
                 "Not enough reward tokens in the pool"
             );
             pool.rewardToken.transfer(account, earned);
-            stakingPools[_poolId].rewardTokenAmount -= earned;
+            // stakingPools[_poolId].rewardTokenAmount -= earned;
+            // update reserved rewards
+            reservedRewardsForStakePool[_poolId] -= earned;
         }
         if (_unstake) {
             // unstake tokens if user wants to unstake
@@ -639,6 +648,7 @@ contract StakingContract is
         // update total staked tokens in the pool
         // stakingPools[_poolId].totalStaked -= tokenIds.length;
         // update user's staked balance
+        reservedRewardsForStakePool[_poolId] -= _earningInfoNFT(_poolId, tokenIds, pool.endDate);
         stakedBalances[account][_poolId] -= tokenIds.length;
         
         stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] -= tokenIds.length;
@@ -658,6 +668,7 @@ contract StakingContract is
             );
             emit NFTUnstaked(account, _poolId, tokenId);
         }
+        
     }
 
     /**
@@ -734,6 +745,9 @@ contract StakingContract is
         }
         uint256 penaltyFee = 0;
         uint256 unstakingFee = 0;
+
+        reservedRewardsForStakePool[_poolId] -= earned;
+        
         if (_unstake) {
             // calculate penalty
             if (pool.endDate < block.timestamp) {
@@ -754,12 +768,12 @@ contract StakingContract is
         require(_unstake || earned > 0, "nothing to unstake or claim");
         if (earned > 0) {
             require(
-                pool.rewardTokenAmount >= earned,
+                reservedRewardsForStakePool[_poolId] >= earned,
                 "Not enough reward tokens in the pool"
             );
             pool.rewardToken.transfer(account, earned);
 
-            stakingPools[_poolId].rewardTokenAmount -= earned;
+            // stakingPools[_poolId].rewardTokenAmount -= earned;
         }
         if (_unstake) {
             _unstakeNFT(_poolId, account, tokenIds);
@@ -822,7 +836,14 @@ contract StakingContract is
     function earningInfoNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
-    ) public view returns (uint256) {
+    ) external view returns (uint256){
+        return _earningInfoNFT(_poolId, tokenIds, block.timestamp);
+    }
+    function _earningInfoNFT(
+        uint256 _poolId,
+        uint256[] calldata tokenIds,
+        uint256 _time
+    ) internal view returns (uint256) {
         uint256 tokenId;
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
@@ -838,7 +859,7 @@ contract StakingContract is
                     _poolId,
                     staked.timestamp
                 ) + 1;
-                uint256 periodNow = getPeriodNumber(_poolId, block.timestamp);
+                uint256 periodNow = getPeriodNumber(_poolId, _time);
                 uint256 totalStakeAmount = _getTotalPreviousStakedAmount(_poolId, periodStarted);
                 for (uint256 _i = periodStarted; _i < periodNow; _i++) {
                     totalStakeAmount += stakePoolHelper[_poolId][_i];
@@ -847,9 +868,9 @@ contract StakingContract is
             } else {
                 uint256 _periodStaked;
                 {
-                    if (block.timestamp < pool.endDate)
+                    if (_time < pool.endDate)
                         _periodStaked =
-                            (block.timestamp - staked.timestamp) /
+                            (_time - staked.timestamp) /
                             pool.poolPeriod;
                     else
                         _periodStaked =
@@ -865,7 +886,6 @@ contract StakingContract is
         }
         return earned;
     }
-
     /**
      * @dev Function to get user's reward info for staked tokens
      * @param _poolId pool id
@@ -874,6 +894,13 @@ contract StakingContract is
     function earningInfoToken(
         uint256 _poolId,
         address account
+    ) public view returns (uint256){
+        return _earningInfoToken(_poolId, account, block.timestamp);
+    }
+    function _earningInfoToken(
+        uint256 _poolId,
+        address account,
+        uint256 _time
     ) public view returns (uint256) {
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
@@ -886,7 +913,7 @@ contract StakingContract is
             pool.rewardTokenDecimals
         );
         uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) + 1;
-        uint256 periodNow = getPeriodNumber(_poolId, block.timestamp);
+        uint256 periodNow = getPeriodNumber(_poolId, _time);
 
         // Calculate earned reward tokens
         if (pool.isSharedPool) {
@@ -909,9 +936,9 @@ contract StakingContract is
             //reward tokens distributed based on bonus percentage and amount staked
             uint256 _periodStaked;
             {
-                if (block.timestamp < pool.endDate)
+                if (_time < pool.endDate)
                     _periodStaked =
-                        (block.timestamp - staked.timestamp) /
+                        (_time - staked.timestamp) /
                         pool.poolPeriod;
                 else
                     _periodStaked =
@@ -954,8 +981,7 @@ contract StakingContract is
             pool.isActive == false || pool.endDate < block.timestamp,
             "Pool is active or not ended yet"
         );
-        pool.rewardToken.transfer(msg.sender, pool.rewardTokenAmount);
-        pool.rewardTokenAmount = 0;
+        pool.rewardToken.transfer(msg.sender, pool.rewardTokenAmount - reservedRewardsForStakePool[_poolId]);
     }
 
     /**
