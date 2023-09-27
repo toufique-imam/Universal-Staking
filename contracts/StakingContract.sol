@@ -703,12 +703,6 @@ contract StakingContract is
         );
     }
 
-    /**
-     * @dev Internal Function to unstake tokens
-     * @param _poolId pool id to unstake from
-     * @param account address of the user
-     * @param _amount amount of tokens to unstake
-     */
     function _unstakeToken(
         uint256 _poolId,
         address account,
@@ -775,13 +769,6 @@ contract StakingContract is
         emit Unstaked(account, _poolId, _amount, penalty);
     }
 
-    /**
-     * @dev Internal Function to claim reward tokens
-     * @param _poolId pool id to claim rewards from
-     * @param account address of the user
-     * @param _amount amount of tokens to unstake
-     * @param _unstake true if user wants to unstake
-     */
     function _claimToken(
         uint256 _poolId,
         address account,
@@ -789,9 +776,6 @@ contract StakingContract is
         bool _unstake
     ) internal {
         StakingPool memory pool = stakingPools[_poolId];
-        // Check if the pool is active
-        // require(pool.isActive, "This pool is not active"); adding this check will prevent users from claiming rewards after the pool is set inactive
-        // Check if the pool is not NFT
         require(
             pool.poolType == PoolType.TOKEN,
             "This function is for Tokens only"
@@ -924,12 +908,6 @@ contract StakingContract is
         );
     }
 
-    /**
-     * @dev Internal Function to unstake tokens
-     * @param _poolId pool id to unstake from
-     * @param account address of the user
-     * @param _amount amount of tokens to unstake
-     */
     function _unstakeCoin(
         uint256 _poolId,
         address account,
@@ -994,13 +972,6 @@ contract StakingContract is
         emit Unstaked(account, _poolId, _amount, penalty);
     }
 
-    /**
-     * @dev Internal Function to claim reward tokens
-     * @param _poolId pool id to claim rewards from
-     * @param account address of the user
-     * @param _amount amount of tokens to unstake
-     * @param _unstake true if user wants to unstake
-     */
     function _claimCoin(
         uint256 _poolId,
         address account,
@@ -1008,9 +979,6 @@ contract StakingContract is
         bool _unstake
     ) internal {
         StakingPool memory pool = stakingPools[_poolId];
-        // Check if the pool is active
-        // require(pool.isActive, "This pool is not active"); adding this check will prevent users from claiming rewards after the pool is set inactive
-        // Check if the pool is not NFT
         require(
             pool.poolType == PoolType.COIN,
             "This function is for Tokens only"
@@ -1105,13 +1073,11 @@ contract StakingContract is
                 "Not enough reward tokens in the pool"
             );
             pool.rewardToken.transfer(account, earned);
-            // stakingPools[_poolId].rewardTokenAmount -= earned;
-            // update reserved rewards
             reservedRewardsForStakePool[_poolId] -= earned;
         }
         if (_unstake) {
             // unstake tokens if user wants to unstake
-            _unstakeToken(_poolId, account, _amount);
+            _unstakeCoin(_poolId, account, _amount);
         }
         emit RewardClaimed(account, _poolId, earned);
     }
@@ -1140,12 +1106,6 @@ contract StakingContract is
         _claimNFT(_poolId, msg.sender, tokenIds, false);
     }
 
-    /**
-     * @dev Internal Function to unstake NFTs
-     * @param _poolId pool id to unstake from
-     * @param account address of the user
-     * @param tokenIds Array of token ids to unstake
-     */
     function _unstakeNFT(
         uint256 _poolId,
         address account,
@@ -1193,13 +1153,6 @@ contract StakingContract is
         }
     }
 
-    /**
-     * @dev Internal Function to claim reward tokens
-     * @param _poolId pool id to claim rewards from
-     * @param account address of the user
-     * @param tokenIds Array of token ids to claim rewards from
-     * @param _unstake true if user wants to unstake
-     */
     function _claimNFT(
         uint256 _poolId,
         address account,
@@ -1594,7 +1547,7 @@ contract StakingContract is
     }
 
     /**
-     * @dev Function to get user's reward info for staked tokens
+     * @dev Function to get user's reward info for staked coins
      * @param _poolId pool id
      * @param account address of the user
      */
@@ -1623,9 +1576,9 @@ contract StakingContract is
         uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) + 1;
         uint256 periodNow = getPeriodNumber(_poolId, _time);
 
-        // Calculate earned reward tokens
+        // Calculate earned reward coins
         if (pool.isSharedPool) {
-            //reward tokens distributed based on total reward tokens and amount staked
+            //reward coins distributed based on total reward coins and amount staked
             uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
                 _poolId,
                 periodStarted
@@ -1644,7 +1597,7 @@ contract StakingContract is
                     (totalInRewardAmount);
             }
         } else {
-            //reward tokens distributed based on bonus percentage and amount staked
+            //reward coins distributed based on bonus percentage and amount staked
             uint256 _periodStaked;
             {
                 if (_time < pool.endDate)
