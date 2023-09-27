@@ -2,7 +2,7 @@ import { StakingContractABI } from "@/consts/ABI/StakingContractABI";
 import { writeContract, waitForTransaction, readContract, prepareWriteContract } from "wagmi/actions"
 import { Address, zeroAddress } from "viem";
 import { stakeTokenAddress } from "@/consts/contractAddresses";
-import { StakingPool } from "../types";
+import { PoolType, StakingPool } from "../types";
 import { chains } from "../wagmi";
 import { erc20ABI, erc721ABI } from "wagmi";
 export const getPoolCreationFee = async () => {
@@ -19,14 +19,15 @@ export const getPoolCreationFee = async () => {
         return 0n;
     }
 }
-export const createStakingPool = async (stakingToken: Address, rewardToken: Address,
+
+export const createStakingPool = async (poolType: PoolType, stakingToken: Address, rewardToken: Address,
     stakingTokenDecimals: bigint, rewardTokenDecimals: bigint,
     startDate: bigint, endDate: bigint,
-    maxStakePerWallet: bigint,
+    maxStakePerWallet: bigint, maxTotalStake: bigint,
     isNFT: boolean, isSharedPool: boolean,
     penaltyPercentageN: bigint, penaltyPercentageD: bigint,
     bonusPercentageN: bigint, bonusPercentageD: bigint,
-    poolPeriod: bigint
+    poolPeriod: bigint, rewardTokenAmount: bigint
 ) => {
     try {
         const fee = await getPoolCreationFee()
@@ -35,14 +36,13 @@ export const createStakingPool = async (stakingToken: Address, rewardToken: Addr
             abi: StakingContractABI,
             functionName: "createStakingPool",
             chainId: chains[0].id,
-            args: [stakingToken, rewardToken,
+            args: [poolType, stakingToken, rewardToken,
                 stakingTokenDecimals, rewardTokenDecimals,
                 startDate, endDate,
-                maxStakePerWallet,
-                isNFT, isSharedPool,
+                maxStakePerWallet, maxTotalStake, isSharedPool,
                 penaltyPercentageN, penaltyPercentageD,
                 bonusPercentageN, bonusPercentageD
-                , poolPeriod],
+                , poolPeriod, rewardTokenAmount],
             value: fee
         })
         const allowanceTx = await waitForTransaction({ hash })
@@ -212,8 +212,9 @@ export const getPoolInfo = async (poolId: bigint) => {
             endDate: BigInt(0),
             creator: zeroAddress,
             maxStakePerWallet: BigInt(0),
+            maxTotalStake: BigInt(0),
             isActive: false,
-            isNFT: false,
+            poolType: PoolType.TOKEN,
             isSharedPool: false,
             bonusPercentageNumerator: BigInt(0),
             bonusPercentageDenominator: BigInt(0),
@@ -260,7 +261,7 @@ export const withdraw = async (poolId: bigint) => {
         const { hash } = await writeContract({
             address: stakeTokenAddress,
             abi: StakingContractABI,
-            functionName: "withdrawStake",
+            functionName: "WithdrawRWDcreator",
             chainId: chains[0].id,
             args: [poolId]
         })
@@ -294,7 +295,7 @@ export const setPoolInactive = async (poolId: bigint, status: boolean) => {
 export const updateTokenAllowance = async (poolId: bigint, amount: bigint) => {
     try {
         const data = await getPoolInfo(poolId)
-        if (data.isNFT) return -1;
+        if (data.poolType != PoolType.COIN) return -1;
         await updateTokenAllowanceByAddress(data.rewardToken, amount)
         return 1;
     } catch (e) {
@@ -321,28 +322,28 @@ export const updateTokenAllowanceByAddress = async (tokenAddress: Address, amoun
     }
 }
 
-export const receiveToken = async (poolId: bigint, amount: bigint) => {
-    try {
-        const { hash } = await writeContract({
-            address: stakeTokenAddress,
-            abi: StakingContractABI,
-            functionName: "depositRewardToken",
-            chainId: chains[0].id,
-            args: [poolId, amount]
-        })
-        const allowanceTx = await waitForTransaction({ hash })
-        console.log(allowanceTx)
-        return 1;
-    } catch (e) {
-        console.error(e)
-        return -1;
-    }
-}
+// export const receiveToken = async (poolId: bigint, amount: bigint) => {
+//     try {
+//         const { hash } = await writeContract({
+//             address: stakeTokenAddress,
+//             abi: StakingContractABI,
+//             functionName: "depositRewardToken",
+//             chainId: chains[0].id,
+//             args: [poolId, amount]
+//         })
+//         const allowanceTx = await waitForTransaction({ hash })
+//         console.log(allowanceTx)
+//         return 1;
+//     } catch (e) {
+//         console.error(e)
+//         return -1;
+//     }
+// }
 
 export const updateStakeNFTAllowance = async (poolId: bigint) => {
     try {
         const data = await getPoolInfo(poolId)
-        if (!data.isNFT) return -1;
+        if (data.poolType != PoolType.COIN) return -1;
         const { hash } = await writeContract({
             address: data.stakingAddress,
             abi: erc721ABI,
@@ -362,7 +363,8 @@ export const updateStakeNFTAllowance = async (poolId: bigint) => {
 export const updateStakeTokenAllowance = async (poolId: bigint, amount: bigint) => {
     try {
         const data = await getPoolInfo(poolId)
-        if (!data.isNFT) return -1;
+
+        if (data.poolType != PoolType.COIN) return -1;
         await updateTokenAllowanceByAddress(data.stakingAddress, amount)
         return 1;
     } catch (e) {
@@ -373,7 +375,8 @@ export const updateStakeTokenAllowance = async (poolId: bigint, amount: bigint) 
 export const getTokenAllowanceByPoolId = async (account: Address, poolId: bigint) => {
     try {
         const data = await getPoolInfo(poolId)
-        if (data.isNFT) return -1;
+
+        if (data.poolType != PoolType.COIN) return -1;
         const result = await readContract({
             address: data.stakingAddress,
             abi: erc20ABI,
@@ -390,7 +393,8 @@ export const getTokenAllowanceByPoolId = async (account: Address, poolId: bigint
 export const getNFTAllowanceByPoolId = async (account: Address, poolId: bigint) => {
     try {
         const data = await getPoolInfo(poolId)
-        if (!data.isNFT) return -1;
+
+        if (data.poolType != PoolType.COIN) return -1;
         const result = await readContract({
             address: data.stakingAddress,
             abi: erc721ABI,

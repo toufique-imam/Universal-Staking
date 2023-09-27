@@ -6,4 +6,5 @@
 6-how can i have the counting of all staking and unstaking fees for each individual pool
 7-how can i have the counting of all stakes (ex: i stake = 1, you stake = 2, i stake again = 3 and so on)
 8-penalty must go to creator
-9.help testing to make sure everything's good
+9-add rewards and staking in coin's chain
+10.help testing to make sure everything's good

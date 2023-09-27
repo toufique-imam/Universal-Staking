@@ -1,1 +1,1 @@
-export const stakeTokenAddress = '0x27727Dd0f034512e92Ab2E9a10D18eE9dB9E0cb3'
+export const stakeTokenAddress = '0xc3800b026e441c9dc15f1a5fAe766C945D9443F2'
