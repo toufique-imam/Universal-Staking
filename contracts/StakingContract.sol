@@ -36,14 +36,15 @@ contract StakingContract is
         address creator;
         uint256 maxStakePerWallet;
         uint256 maxTotalStake;
-        bool isActive;
-        PoolType poolType;
-        bool isSharedPool;
         uint256 penaltyPercentageNumerator;
         uint256 penaltyPercentageDenominator;
         uint256 bonusPercentageNumerator;
         uint256 bonusPercentageDenominator;
         uint256 poolPeriod;
+        PoolType poolType;
+        bool isActive;
+        bool isCoinReward;
+        bool isSharedPool;
     }
     struct PoolInfo {
         uint256 stakeCount;
@@ -102,7 +103,6 @@ contract StakingContract is
      * @dev Function to create a new TOKEN staking pool, pool creator pays a fee to create the pool
      */
     function createStakingPool(
-        PoolType _poolType,
         address _stakingAddress,
         address _rewardTokenAddress,
         uint256 _stakingTokenDecimals,
@@ -112,6 +112,7 @@ contract StakingContract is
         uint256 _maxStakePerWallet,
         uint256 _maxTotalStake,
         bool isShared,
+        bool isNFT,
         uint256 penaltyPercentageN,
         uint256 penaltyPercentageD,
         uint256 bonusPercentageN,
@@ -120,13 +121,14 @@ contract StakingContract is
         uint256 rewardTokenAmount
     ) external payable whenNotPaused nonReentrant {
         require(msg.value >= poolCreationFee, "Insufficient fee");
+        PoolType _poolType = PoolType.TOKEN;
+        bool isCoinReward = false;
+        if (_rewardTokenAddress == address(0)) isCoinReward = true;
+        if (_stakingAddress == address(0)) _poolType = PoolType.COIN;
+        if (isNFT) _poolType = PoolType.NFT;
         require(
             _poolType == PoolType.COIN || _stakingAddress != address(0),
             "Staking address cannot be zero address"
-        );
-        require(
-            _rewardTokenAddress != address(0),
-            "Reward token address cannot be zero address"
         );
         require(
             _startDate > block.timestamp,
@@ -166,18 +168,35 @@ contract StakingContract is
 
         IERC20 rewardToken = IERC20(_rewardTokenAddress);
         // Make sure to approve the contract to spend the tokens beforehand
-        require(
-            rewardToken.allowance(msg.sender, address(this)) >=
-                rewardTokenAmount,
-            "Please approve the contract to spend the tokens first"
-        );
-        // Transfer staking tokens from the user to the contract
-        rewardToken.transferFrom(msg.sender, address(this), rewardTokenAmount);
+        if (!isCoinReward) {
+            require(
+                rewardToken.allowance(msg.sender, address(this)) >=
+                    rewardTokenAmount,
+                "Please approve the contract to spend the tokens first"
+            );
+            // Transfer staking tokens from the user to the contract
+            rewardToken.transferFrom(
+                msg.sender,
+                address(this),
+                rewardTokenAmount
+            );
+        } else {
+            require(
+                msg.value >= rewardTokenAmount + poolCreationFee,
+                "Insufficient reward token amount"
+            );
+        }
         if (isShared) {
             uint256 _periodCount = (_endDate - _startDate) / poolPeriod;
             rewardTokenAmount = rewardTokenAmount / _periodCount; // total reward per period
         }
         uint256 poolId = poolCount;
+        /*
+        PoolType poolType;        
+        bool isActive;
+        bool isCoinReward;
+        bool isSharedPool;
+        */
         stakingPools[poolId] = StakingPool(
             _stakingAddress,
             rewardToken,
@@ -189,14 +208,15 @@ contract StakingContract is
             msg.sender,
             _maxStakePerWallet,
             _maxTotalStake,
-            true,
-            _poolType,
-            false,
             penaltyPercentageN,
             penaltyPercentageD,
             bonusPercentageN,
             bonusPercentageD,
-            poolPeriod
+            poolPeriod,
+            _poolType,
+            true,
+            isCoinReward,
+            isShared
         );
         poolInfo[poolId] = PoolInfo({
             stakeCount: 0,
@@ -592,7 +612,8 @@ contract StakingContract is
         );
         if (pool.isSharedPool) {
             //starting from next period
-            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) + 1;
+            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) +
+                1;
             // current period
             uint256 periodNow = getPeriodNumber(_poolId, block.timestamp);
 
@@ -656,7 +677,11 @@ contract StakingContract is
                 pool.rewardTokenAmount >= earned,
                 "Not enough reward tokens in the pool"
             );
-            pool.rewardToken.transfer(account, earned);
+            if (pool.isCoinReward) {
+                payable(account).transfer(earned);
+            } else {
+                pool.rewardToken.transfer(account, earned);
+            }
             // stakingPools[_poolId].rewardTokenAmount -= earned;
             // update reserved rewards
             reservedRewardsForStakePool[_poolId] -= earned;
@@ -733,9 +758,9 @@ contract StakingContract is
         // Calculate net unstaked amount
         uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
         // update token withdraw balance
-        payable(owner()).transfer(unstakingFee);
+        if (unstakingFee > 0) payable(owner()).transfer(unstakingFee);
         // Transfer penalty tokens to the pool creator
-        payable(pool.creator).transfer(penalty);
+        if (penalty > 0) payable(pool.creator).transfer(penalty);
 
         // Transfer staking tokens back to the user
         payable(msg.sender).transfer(netUnstakedAmount);
@@ -858,7 +883,8 @@ contract StakingContract is
                 pool.rewardTokenAmount >= earned,
                 "Not enough reward tokens in the pool"
             );
-            pool.rewardToken.transfer(account, earned);
+            if (!pool.isCoinReward) pool.rewardToken.transfer(account, earned);
+            else payable(account).transfer(earned);
             reservedRewardsForStakePool[_poolId] -= earned;
         }
         if (_unstake) {
@@ -1026,11 +1052,18 @@ contract StakingContract is
             unstakingFee =
                 (earned * unstakingFeePercentageNumerator) /
                 unstakingFeePercentageDenominator;
-
-            pool.rewardToken.transfer(owner(), unstakingFee);
+            if (unstakingFee > 0) {
+                if (pool.isCoinReward) payable(owner()).transfer(unstakingFee);
+                else pool.rewardToken.transfer(owner(), unstakingFee);
+            }
+            if (penaltyFee > 0) {
+                if (pool.isCoinReward)
+                    payable(pool.creator).transfer(penaltyFee);
+                else pool.rewardToken.transfer(pool.creator, penaltyFee);
+            }
             poolInfo[_poolId].totalUnstakeFee += unstakingFee;
             // tokenWithdrawBalances[address(pool.rewardToken)] += unstakingFee;
-            reservedRewardsForStakePool[_poolId] -= penaltyFee;
+            reservedRewardsForStakePool[_poolId] -= penaltyFee + unstakingFee;
         }
         // calculate net earned amount
         earned = earned - penaltyFee - unstakingFee;
@@ -1040,7 +1073,8 @@ contract StakingContract is
                 pool.rewardTokenAmount >= earned,
                 "Not enough reward tokens in the pool"
             );
-            pool.rewardToken.transfer(account, earned);
+            if (pool.isCoinReward) payable(account).transfer(earned);
+            else pool.rewardToken.transfer(account, earned);
             // stakingPools[_poolId].rewardTokenAmount -= earned;
             // update reserved rewards
             reservedRewardsForStakePool[_poolId] -= earned;
