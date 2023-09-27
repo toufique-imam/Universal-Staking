@@ -425,7 +425,7 @@ contract StakingContract is
     }
 
     /**
-     * @dev Function for users to stake tokens
+     * @dev Function for users to stake coins
      * @param _poolId pool id to stake in
      */
     function stakeCoin(
@@ -457,12 +457,12 @@ contract StakingContract is
 
         //claim unclaim rewards if any
         if (stakedBalances[msg.sender][_poolId] > 0) {
-            // _claimToken(
-            //     _poolId,
-            //     msg.sender,
-            //     stakedBalances[msg.sender][_poolId],
-            //     false
-            // );
+            _claimCoin(
+                _poolId,
+                msg.sender,
+                stakedBalances[msg.sender][_poolId],
+                false
+            );
         } else {
             poolInfo[_poolId].stakeCount += 1;
         }
@@ -664,6 +664,9 @@ contract StakingContract is
             emit NFTStaked(msg.sender, _poolId, tokenId);
         }
         // Update total staked tokens in the pool
+        if (stakedBalances[msg.sender][_poolId] == 0) {
+            poolInfo[_poolId].stakeCount += 1;
+        }
         stakedBalances[msg.sender][_poolId] += tokenIds.length;
         reservedRewardsForStakePool[_poolId] += _earningInfoNFT(
             _poolId,
@@ -672,7 +675,6 @@ contract StakingContract is
         );
         // stakingPools[_poolId].totalStaked += tokenIds.length;
         poolInfo[_poolId].totalStake += tokenIds.length;
-        poolInfo[_poolId].stakeCount += 1;
     }
 
     /**
@@ -819,9 +821,10 @@ contract StakingContract is
             pool.rewardTokenDecimals
         );
         if (pool.isSharedPool) {
-            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) +
-                1; //starting from next period
-            uint256 periodNow = getPeriodNumber(_poolId, block.timestamp); // current period
+            //starting from next period
+            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) + 1;
+            // current period
+            uint256 periodNow = getPeriodNumber(_poolId, block.timestamp);
 
             //reward tokens distributed based on total reward tokens and amount staked
             uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
@@ -1670,9 +1673,7 @@ contract StakingContract is
         if (_previousPeriod == 0) return 0;
         uint256 _totalPreviousStakedAmount = 0;
         for (uint256 i = _previousPeriod; i > 0; i--) {
-            if (stakePoolHelper[_poolId][i] > 0) {
-                _totalPreviousStakedAmount += stakePoolHelper[_poolId][i];
-            }
+            _totalPreviousStakedAmount += stakePoolHelper[_poolId][i];
         }
         return _totalPreviousStakedAmount;
     }
