@@ -20,7 +20,11 @@ contract StakingContract is
     uint256 unstakingFeePercentageDenominator = 2;
     uint256 unstakingFeePercentageNumerator = 100;
     uint256 poolCreationFee = 0.001 ether;
-
+    enum PoolType {
+        TOKEN,
+        NFT,
+        COIN
+    }
     struct StakingPool {
         address stakingAddress;
         IERC20 rewardToken;
@@ -33,7 +37,7 @@ contract StakingContract is
         uint256 maxStakePerWallet;
         uint256 maxTotalStake;
         bool isActive;
-        bool isNFT;
+        PoolType poolType;
         bool isSharedPool;
         uint256 penaltyPercentageNumerator;
         uint256 penaltyPercentageDenominator;
@@ -95,23 +99,9 @@ contract StakingContract is
     constructor() {}
 
     /**
-     * @dev Function to create a new staking pool, pool creator pays a fee to create the pool
-     * @param _stakingAddress address of the staking token/nft
-     * @param _rewardTokenAddress address of the reward token
-     * @param _startDate start date of the staking period
-     * @param _endDate end date of the staking period
-     * @param _maxStakePerWallet maximum amount of tokens/nft that can be staked per wallet
-     * @param _maxTotalStake maximum amount of tokens/nft that can be staked in the pool
-     * @param isShared true if the pool is shared, false means APR pool
-     * @param isNFT true if the pool is for NFTs
-     * @param penaltyPercentageN penalty Numerator for early unstaking
-     * @param penaltyPercentageD penalty Denominator for early unstaking
-     * @param bonusPercentageN bonus Numerator for shared pool
-     * @param bonusPercentageD bonus Denominator for shared pool
-     * @param poolPeriod pool period in seconds
-     * @param rewardTokenAmount amount of reward tokens to be added to the pool
+     * @dev Function to create a new TOKEN staking pool, pool creator pays a fee to create the pool
      */
-    function createStakingPool(
+    function createTokenStakingPool(
         address _stakingAddress,
         address _rewardTokenAddress,
         uint256 _stakingTokenDecimals,
@@ -121,7 +111,6 @@ contract StakingContract is
         uint256 _maxStakePerWallet,
         uint256 _maxTotalStake,
         bool isShared,
-        bool isNFT,
         uint256 penaltyPercentageN,
         uint256 penaltyPercentageD,
         uint256 bonusPercentageN,
@@ -177,7 +166,8 @@ contract StakingContract is
         IERC20 rewardToken = IERC20(_rewardTokenAddress);
         // Make sure to approve the contract to spend the tokens beforehand
         require(
-            rewardToken.allowance(msg.sender, address(this)) >= rewardTokenAmount,
+            rewardToken.allowance(msg.sender, address(this)) >=
+                rewardTokenAmount,
             "Please approve the contract to spend the tokens first"
         );
         // Transfer staking tokens from the user to the contract
@@ -199,7 +189,7 @@ contract StakingContract is
             _maxStakePerWallet,
             _maxTotalStake,
             true,
-            isNFT,
+            PoolType.TOKEN,
             false,
             penaltyPercentageN,
             penaltyPercentageD,
@@ -219,36 +209,299 @@ contract StakingContract is
         emit PoolCreated(poolId);
     }
 
-    function getPeriodNumber(
-        uint256 _poolId,
-        uint256 _currentTime
-    ) public view returns (uint256) {
-        StakingPool memory pool = stakingPools[_poolId];
-        if (_currentTime < pool.startDate) return 0;
-        if (_currentTime > pool.endDate) {
-            _currentTime = pool.endDate;
-        }
-        return (_currentTime - pool.startDate) / pool.poolPeriod;
-    }
-
-    function getRequiredRewardTokenAmount(
+    /**
+     * @dev Function to create a new COIN staking pool, pool creator pays a fee to create the pool
+     */
+    function createCoinStakingPool(
+        uint256 _stakingTokenDecimals,
+        address _rewardTokenAddress,
+        uint256 _rewardTokenDecimals,
         uint256 _startDate,
         uint256 _endDate,
+        uint256 _maxStakePerWallet,
         uint256 _maxTotalStake,
+        bool isShared,
+        uint256 penaltyPercentageN,
+        uint256 penaltyPercentageD,
         uint256 bonusPercentageN,
         uint256 bonusPercentageD,
         uint256 poolPeriod,
-        uint256 stakingTokenDecimals,
-        uint256 rewardTokenDecimals
-    ) public pure returns (uint256) {
-        uint256 totalRewardAmount = ((_endDate - _startDate) * bonusPercentageN * _maxTotalStake) / (bonusPercentageD * poolPeriod);
+        uint256 rewardTokenAmount
+    ) external payable whenNotPaused nonReentrant {
+        require(msg.value >= poolCreationFee, "Insufficient fee");
+        require(
+            _rewardTokenAddress != address(0),
+            "Reward token address cannot be zero address"
+        );
+        require(
+            _startDate > block.timestamp,
+            "Start date cannot be in the past"
+        );
+        require(_endDate > _startDate, "End date cannot be before start date");
+        require(
+            _maxStakePerWallet > 0,
+            "Maximum stake per wallet cannot be zero"
+        );
+        require(
+            penaltyPercentageN < penaltyPercentageD,
+            "Penalty Numerator cannot be greater than Denominator"
+        );
+        require(
+            bonusPercentageN < bonusPercentageD,
+            "Bonus Numerator cannot be greater than Denominator"
+        );
+        require(poolPeriod > 0, "Pool period cannot be zero");
+        require(_maxTotalStake > 0, "Maximum total stake cannot be zero");
 
-        return
-            convertAmountToDecimal(
-                totalRewardAmount,
-                stakingTokenDecimals,
-                rewardTokenDecimals
+        //bonusPercentageD tokens will get bonusPercentageN tokens per poolPeriod
+        // max total stake will get bonusPercentageN * max total stake / bonusPercentageD tokens per poolPeriod
+        if (!isShared) {
+            rewardTokenAmount = getRequiredRewardTokenAmount(
+                _startDate,
+                _endDate,
+                _maxTotalStake,
+                bonusPercentageN,
+                bonusPercentageD,
+                poolPeriod,
+                _stakingTokenDecimals,
+                _rewardTokenDecimals
             );
+        }
+        require(rewardTokenAmount > 0, "Reward Amount cannot be zero");
+
+        IERC20 rewardToken = IERC20(_rewardTokenAddress);
+        // Make sure to approve the contract to spend the tokens beforehand
+        require(
+            rewardToken.allowance(msg.sender, address(this)) >=
+                rewardTokenAmount,
+            "Please approve the contract to spend the tokens first"
+        );
+        // Transfer staking tokens from the user to the contract
+        rewardToken.transferFrom(msg.sender, address(this), rewardTokenAmount);
+        if (isShared) {
+            uint256 _periodCount = (_endDate - _startDate) / poolPeriod;
+            rewardTokenAmount = rewardTokenAmount / _periodCount; // total reward per period
+        }
+        uint256 poolId = poolCount;
+        stakingPools[poolId] = StakingPool(
+            address(0),
+            rewardToken,
+            _stakingTokenDecimals,
+            _rewardTokenDecimals,
+            rewardTokenAmount,
+            _startDate,
+            _endDate,
+            msg.sender,
+            _maxStakePerWallet,
+            _maxTotalStake,
+            true,
+            PoolType.COIN,
+            false,
+            penaltyPercentageN,
+            penaltyPercentageD,
+            bonusPercentageN,
+            bonusPercentageD,
+            poolPeriod
+        );
+        poolInfo[poolId] = PoolInfo({
+            stakeCount: 0,
+            totalStake: 0,
+            totalStakeFee: 0,
+            totalUnstakeFee: 0
+        });
+        // isActivePool[poolId] = true;
+        poolCount++;
+
+        emit PoolCreated(poolId);
+    }
+
+    /**
+     * @dev Function to create a new NFT staking pool, pool creator pays a fee to create the pool
+     */
+    function createNFTStakingPool(
+        address _stakingAddress,
+        address _rewardTokenAddress,
+        uint256 _startDate,
+        uint256 _endDate,
+        uint256 _maxStakePerWallet,
+        uint256 _maxTotalStake,
+        bool isShared,
+        uint256 penaltyPercentageN,
+        uint256 penaltyPercentageD,
+        uint256 bonusPercentageN,
+        uint256 bonusPercentageD,
+        uint256 poolPeriod,
+        uint256 rewardTokenAmount
+    ) external payable whenNotPaused nonReentrant {
+        require(msg.value >= poolCreationFee, "Insufficient fee");
+        require(
+            _stakingAddress != address(0),
+            "Staking address cannot be zero address"
+        );
+        require(
+            _rewardTokenAddress != address(0),
+            "Reward token address cannot be zero address"
+        );
+        require(
+            _startDate > block.timestamp,
+            "Start date cannot be in the past"
+        );
+        require(_endDate > _startDate, "End date cannot be before start date");
+        require(
+            _maxStakePerWallet > 0,
+            "Maximum stake per wallet cannot be zero"
+        );
+        require(
+            penaltyPercentageN < penaltyPercentageD,
+            "Penalty Numerator cannot be greater than Denominator"
+        );
+        require(
+            bonusPercentageN < bonusPercentageD,
+            "Bonus Numerator cannot be greater than Denominator"
+        );
+        require(poolPeriod > 0, "Pool period cannot be zero");
+        require(_maxTotalStake > 0, "Maximum total stake cannot be zero");
+
+        //bonusPercentageD tokens will get bonusPercentageN tokens per poolPeriod
+        // max total stake will get bonusPercentageN * max total stake / bonusPercentageD tokens per poolPeriod
+        if (!isShared) {
+            rewardTokenAmount = getRequiredRewardTokenAmount(
+                _startDate,
+                _endDate,
+                _maxTotalStake,
+                bonusPercentageN,
+                bonusPercentageD,
+                poolPeriod,
+                1,
+                1
+            );
+        }
+        require(rewardTokenAmount > 0, "Reward Amount cannot be zero");
+
+        IERC20 rewardToken = IERC20(_rewardTokenAddress);
+        // Make sure to approve the contract to spend the tokens beforehand
+        require(
+            rewardToken.allowance(msg.sender, address(this)) >=
+                rewardTokenAmount,
+            "Please approve the contract to spend the tokens first"
+        );
+        // Transfer staking tokens from the user to the contract
+        rewardToken.transferFrom(msg.sender, address(this), rewardTokenAmount);
+        if (isShared) {
+            uint256 _periodCount = (_endDate - _startDate) / poolPeriod;
+            rewardTokenAmount = rewardTokenAmount / _periodCount; // total reward per period
+        }
+        uint256 poolId = poolCount;
+        stakingPools[poolId] = StakingPool(
+            _stakingAddress,
+            rewardToken,
+            1,
+            1,
+            rewardTokenAmount,
+            _startDate,
+            _endDate,
+            msg.sender,
+            _maxStakePerWallet,
+            _maxTotalStake,
+            true,
+            PoolType.NFT,
+            false,
+            penaltyPercentageN,
+            penaltyPercentageD,
+            bonusPercentageN,
+            bonusPercentageD,
+            poolPeriod
+        );
+        poolInfo[poolId] = PoolInfo({
+            stakeCount: 0,
+            totalStake: 0,
+            totalStakeFee: 0,
+            totalUnstakeFee: 0
+        });
+        // isActivePool[poolId] = true;
+        poolCount++;
+
+        emit PoolCreated(poolId);
+    }
+
+    /**
+     * @dev Function for users to stake tokens
+     * @param _poolId pool id to stake in
+     */
+    function stakeCoin(
+        uint256 _poolId
+    ) public payable whenNotPaused nonReentrant {
+        StakingPool memory pool = stakingPools[_poolId];
+        uint256 _amount = msg.value;
+        // Check if the pool is active
+        require(pool.isActive, "This pool is not active");
+        // Check if the pool is not NFT
+        require(
+            pool.poolType == PoolType.COIN,
+            "This function is for Tokens only"
+        );
+        // Check if the staking period is valid
+        require(
+            block.timestamp >= pool.startDate &&
+                block.timestamp <= pool.endDate,
+            "The pool isn't active yet."
+        );
+        // Check if the pool has any reward tokens
+        require(pool.rewardTokenAmount > 0, "No reward token in the pool");
+        // Check if the user's staked balance doesn't exceed the maximum allowed
+        require(
+            stakedBalances[msg.sender][_poolId] + _amount <=
+                pool.maxStakePerWallet,
+            "Maximum Stake Limit exceeded."
+        );
+
+        //claim unclaim rewards if any
+        if (stakedBalances[msg.sender][_poolId] > 0) {
+            // _claimToken(
+            //     _poolId,
+            //     msg.sender,
+            //     stakedBalances[msg.sender][_poolId],
+            //     false
+            // );
+        } else {
+            poolInfo[_poolId].stakeCount += 1;
+        }
+
+        // Calculate staking fee
+        uint256 stakingFee = (_amount * stakingFeePercentageNumerator) /
+            stakingFeePercentageDenominator;
+
+        payable(owner()).transfer(stakingFee);
+
+        // Calculate net staked amount
+        uint256 netStakedAmount = _amount - stakingFee;
+
+        // Update user's staked balance
+        stakedBalances[msg.sender][_poolId] += netStakedAmount;
+        // stakingPools[_poolId].totalStaked += netStakedAmount;
+
+        //his stake will start from next timestamp
+        stakePoolHelper[_poolId][
+            getPeriodNumber(_poolId, block.timestamp) + 1
+        ] += netStakedAmount;
+
+        // Update user's vault
+        vaults[msg.sender][_poolId] = Stake({
+            poolId: _poolId,
+            tokenId: stakedBalances[msg.sender][_poolId],
+            timestamp: block.timestamp,
+            owner: msg.sender
+        });
+        // calculate earned amount if user staked to endtime
+        reservedRewardsForStakePool[_poolId] += _earningInfoCoin(
+            _poolId,
+            msg.sender,
+            pool.endDate
+        );
+        poolInfo[_poolId].totalStake += _amount;
+        poolInfo[_poolId].totalStakeFee += stakingFee;
+        // Emit stake event
+        emit Staked(msg.sender, _poolId, _amount);
     }
 
     /**
@@ -264,7 +517,10 @@ contract StakingContract is
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
         // Check if the pool is not NFT
-        require(!pool.isNFT, "This function is for Tokens only");
+        require(
+            pool.poolType == PoolType.TOKEN,
+            "This function is for Tokens only"
+        );
         // Check if the staking period is valid
         require(
             block.timestamp >= pool.startDate &&
@@ -294,7 +550,7 @@ contract StakingContract is
                 stakedBalances[msg.sender][_poolId],
                 false
             );
-        }else{
+        } else {
             poolInfo[_poolId].stakeCount += 1;
         }
 
@@ -311,20 +567,19 @@ contract StakingContract is
 
         // update token withdraw balance
         // tokenWithdrawBalances[pool.stakingAddress] += stakingFee;
-        IERC20(pool.stakingAddress).transfer(
-            owner(),
-            stakingFee
-        );
+        IERC20(pool.stakingAddress).transfer(owner(), stakingFee);
 
         // Calculate net staked amount
         uint256 netStakedAmount = _amount - stakingFee;
-    
+
         // Update user's staked balance
         stakedBalances[msg.sender][_poolId] += netStakedAmount;
         // stakingPools[_poolId].totalStaked += netStakedAmount;
-        
+
         //his stake will start from next timestamp
-        stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] += netStakedAmount;
+        stakePoolHelper[_poolId][
+            getPeriodNumber(_poolId, block.timestamp) + 1
+        ] += netStakedAmount;
 
         // Update total staked tokens in the pool
         uint256 totalUserStaked = stakedBalances[msg.sender][_poolId];
@@ -336,7 +591,11 @@ contract StakingContract is
             owner: msg.sender
         });
         // calculate earned amount if user staked to endtime
-        reservedRewardsForStakePool[_poolId] += _earningInfoToken(_poolId, msg.sender, pool.endDate);
+        reservedRewardsForStakePool[_poolId] += _earningInfoToken(
+            _poolId,
+            msg.sender,
+            pool.endDate
+        );
         poolInfo[_poolId].totalStake += _amount;
         poolInfo[_poolId].totalStakeFee += stakingFee;
         // Emit stake event
@@ -356,7 +615,10 @@ contract StakingContract is
         // Check if the pool is active
         require(pool.isActive, "This pool is not active");
         // Check if the pool is NFT
-        require(pool.isNFT, "This function is for NFT stake only");
+        require(
+            pool.poolType == PoolType.NFT,
+            "This function is for NFT stake only"
+        );
         // Check if the staking period is valid
         require(
             block.timestamp >= pool.startDate &&
@@ -390,7 +652,9 @@ contract StakingContract is
             // Transfer staking tokens from the user to the contract
             nft.safeTransferFrom(msg.sender, address(this), tokenId);
             // Update user's staked balance
-            stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] += 1;
+            stakePoolHelper[_poolId][
+                getPeriodNumber(_poolId, block.timestamp) + 1
+            ] += 1;
             vaults[pool.stakingAddress][tokenId] = Stake({
                 poolId: _poolId,
                 tokenId: tokenId,
@@ -401,7 +665,11 @@ contract StakingContract is
         }
         // Update total staked tokens in the pool
         stakedBalances[msg.sender][_poolId] += tokenIds.length;
-        reservedRewardsForStakePool[_poolId] += _earningInfoNFT(_poolId, tokenIds, pool.endDate);
+        reservedRewardsForStakePool[_poolId] += _earningInfoNFT(
+            _poolId,
+            tokenIds,
+            pool.endDate
+        );
         // stakingPools[_poolId].totalStaked += tokenIds.length;
         poolInfo[_poolId].totalStake += tokenIds.length;
         poolInfo[_poolId].stakeCount += 1;
@@ -469,22 +737,20 @@ contract StakingContract is
                 pool.penaltyPercentageDenominator;
         }
         // update reserved rewards
-        reservedRewardsForStakePool[_poolId] -= _earningInfoToken(_poolId, account, pool.endDate);
+        reservedRewardsForStakePool[_poolId] -= _earningInfoToken(
+            _poolId,
+            account,
+            pool.endDate
+        );
 
         // Calculate net unstaked amount
         uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
         // update token withdraw balance
-        IERC20(pool.stakingAddress).transfer(
-            owner(),
-            unstakingFee
-        );
+        IERC20(pool.stakingAddress).transfer(owner(), unstakingFee);
         // tokenWithdrawBalances[pool.stakingAddress] += unstakingFee;
-        
+
         // Transfer penalty tokens to the pool creator
-        IERC20(pool.stakingAddress).transfer(
-            pool.creator,
-            penalty
-        );
+        IERC20(pool.stakingAddress).transfer(pool.creator, penalty);
 
         // Transfer staking tokens back to the user
         IERC20(pool.stakingAddress).transfer(msg.sender, netUnstakedAmount);
@@ -492,8 +758,10 @@ contract StakingContract is
         // Update user's staked balance
         stakedBalances[account][_poolId] -= _amount;
         // stakingPools[_poolId].totalStaked -= _amount;
-        // his amount will reflect in the total pool amount next time 
-        stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] -= _amount;
+        // his amount will reflect in the total pool amount next time
+        stakePoolHelper[_poolId][
+            getPeriodNumber(_poolId, block.timestamp) + 1
+        ] -= _amount;
         // update vault
         vaults[account][_poolId] = Stake({
             poolId: _poolId,
@@ -503,21 +771,6 @@ contract StakingContract is
         });
         poolInfo[_poolId].totalUnstakeFee += unstakingFee;
         emit Unstaked(account, _poolId, _amount, penalty);
-    }
-
-    function _getTotalPreviousStakedAmount(
-        uint256 _poolId,
-        uint256 _currentPreiod
-    ) internal view returns (uint256){
-        uint256 _previousPeriod = _currentPreiod - 1;
-        if (_previousPeriod == 0) return 0;
-        uint256 _totalPreviousStakedAmount = 0;
-        for(uint256 i = _previousPeriod; i > 0; i--){
-            if(stakePoolHelper[_poolId][i] > 0){
-                _totalPreviousStakedAmount += stakePoolHelper[_poolId][i];
-            }
-        }
-        return _totalPreviousStakedAmount;
     }
 
     /**
@@ -537,7 +790,10 @@ contract StakingContract is
         // Check if the pool is active
         // require(pool.isActive, "This pool is not active"); adding this check will prevent users from claiming rewards after the pool is set inactive
         // Check if the pool is not NFT
-        require(!pool.isNFT, "This function is for Tokens only");
+        require(
+            pool.poolType == PoolType.TOKEN,
+            "This function is for Tokens only"
+        );
         require(
             block.timestamp >= pool.startDate,
             "Claiming is not allowed before the staking period starts"
@@ -563,11 +819,15 @@ contract StakingContract is
             pool.rewardTokenDecimals
         );
         if (pool.isSharedPool) {
-            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) + 1; //starting from next period
+            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) +
+                1; //starting from next period
             uint256 periodNow = getPeriodNumber(_poolId, block.timestamp); // current period
 
             //reward tokens distributed based on total reward tokens and amount staked
-            uint256 totalStakeAmount = _getTotalPreviousStakedAmount(_poolId, periodStarted);
+            uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
+                _poolId,
+                periodStarted
+            );
             uint256 totalInRewardAmount;
             for (uint256 i = periodStarted; i < periodNow; i++) {
                 totalStakeAmount += stakePoolHelper[_poolId][i];
@@ -603,6 +863,224 @@ contract StakingContract is
             }
             earned =
                 _tokenAmountInRewardDecimals *
+                pool.bonusPercentageNumerator *
+                _periodStaked;
+            earned = earned / pool.bonusPercentageDenominator;
+            // update vault
+            vaults[account][_poolId] = Stake({
+                poolId: _poolId,
+                tokenId: staked.tokenId,
+                timestamp: block.timestamp, // update timestamp to current time
+                owner: account
+            });
+        }
+
+        require(_unstake || earned > 0, "nothing to unstake or claim");
+
+        // transfer reward tokens to user
+        if (earned > 0) {
+            require(
+                pool.rewardTokenAmount >= earned,
+                "Not enough reward tokens in the pool"
+            );
+            pool.rewardToken.transfer(account, earned);
+            // stakingPools[_poolId].rewardTokenAmount -= earned;
+            // update reserved rewards
+            reservedRewardsForStakePool[_poolId] -= earned;
+        }
+        if (_unstake) {
+            // unstake tokens if user wants to unstake
+            _unstakeToken(_poolId, account, _amount);
+        }
+        emit RewardClaimed(account, _poolId, earned);
+    }
+
+    /**
+     * @dev Function for users to unstake tokens
+     * @param _poolId pool id to unstake from
+     * @param _amount amount of tokens to unstake
+     */
+    function unstakeCoin(
+        uint256 _poolId,
+        uint256 _amount
+    ) external whenNotPaused nonReentrant {
+        _claimCoin(_poolId, msg.sender, _amount, true);
+    }
+
+    /**
+     * @dev Function for users to claim reward tokens
+     * @param _poolId pool id to claim rewards from
+     */
+    function claimCoin(uint256 _poolId) external nonReentrant whenNotPaused {
+        // claim all rewards
+        _claimCoin(
+            _poolId,
+            msg.sender,
+            stakedBalances[msg.sender][_poolId],
+            false
+        );
+    }
+
+    /**
+     * @dev Internal Function to unstake tokens
+     * @param _poolId pool id to unstake from
+     * @param account address of the user
+     * @param _amount amount of tokens to unstake
+     */
+    function _unstakeCoin(
+        uint256 _poolId,
+        address account,
+        uint256 _amount
+    ) internal {
+        StakingPool memory pool = stakingPools[_poolId];
+        // Check if the pool is active
+        // require(pool.isActive, "This pool is not active"); // adding this check will prevent users from unstaking after the pool is set inactive
+
+        // Check if the user has enough staked tokens
+        require(
+            stakedBalances[account][_poolId] >= _amount,
+            "Insufficient staked balance"
+        );
+        // Check if the staking period is valid
+        require(
+            block.timestamp >= pool.startDate,
+            "Unstaking is not allowed before the staking period starts"
+        );
+        // Calculate unstaking fee
+        uint256 unstakingFee = (_amount * unstakingFeePercentageNumerator) /
+            unstakingFeePercentageDenominator;
+        // Calculate penalty for early unstaking
+        uint256 penalty = 0;
+        if (block.timestamp < pool.endDate) {
+            penalty =
+                (_amount * pool.penaltyPercentageNumerator) /
+                pool.penaltyPercentageDenominator;
+        }
+        // update reserved rewards
+        reservedRewardsForStakePool[_poolId] -= _earningInfoCoin(
+            _poolId,
+            account,
+            pool.endDate
+        );
+
+        // Calculate net unstaked amount
+        uint256 netUnstakedAmount = _amount - unstakingFee - penalty;
+        // update token withdraw balance
+        payable(owner()).transfer(unstakingFee);
+        // Transfer penalty tokens to the pool creator
+        payable(pool.creator).transfer(penalty);
+
+        // Transfer staking tokens back to the user
+        payable(msg.sender).transfer(netUnstakedAmount);
+
+        // Update user's staked balance
+        stakedBalances[account][_poolId] -= _amount;
+        // stakingPools[_poolId].totalStaked -= _amount;
+        // his amount will reflect in the total pool amount next time
+        stakePoolHelper[_poolId][
+            getPeriodNumber(_poolId, block.timestamp) + 1
+        ] -= _amount;
+        // update vault
+        vaults[account][_poolId] = Stake({
+            poolId: _poolId,
+            tokenId: stakedBalances[account][_poolId],
+            timestamp: block.timestamp, // update timestamp to current time
+            owner: account
+        });
+        poolInfo[_poolId].totalUnstakeFee += unstakingFee;
+        emit Unstaked(account, _poolId, _amount, penalty);
+    }
+
+    /**
+     * @dev Internal Function to claim reward tokens
+     * @param _poolId pool id to claim rewards from
+     * @param account address of the user
+     * @param _amount amount of tokens to unstake
+     * @param _unstake true if user wants to unstake
+     */
+    function _claimCoin(
+        uint256 _poolId,
+        address account,
+        uint256 _amount,
+        bool _unstake
+    ) internal {
+        StakingPool memory pool = stakingPools[_poolId];
+        // Check if the pool is active
+        // require(pool.isActive, "This pool is not active"); adding this check will prevent users from claiming rewards after the pool is set inactive
+        // Check if the pool is not NFT
+        require(
+            pool.poolType == PoolType.COIN,
+            "This function is for Tokens only"
+        );
+        require(
+            block.timestamp >= pool.startDate,
+            "Claiming is not allowed before the staking period starts"
+        );
+        Stake memory staked = vaults[account][_poolId];
+        if (staked.timestamp >= pool.endDate) {
+            //already claimed
+            if (_unstake) {
+                // unstake tokens if user wants to unstake
+                _unstakeCoin(_poolId, account, _amount);
+            }
+            return;
+        }
+        require(staked.timestamp < pool.endDate, "Already claimed");
+        // Check if the user has staked tokens
+        if (staked.owner == address(0) || staked.tokenId == 0) return;
+
+        // Calculate earned reward tokens
+        uint256 earned = 0;
+        uint256 _coinAmountInRewardDecimals = convertAmountToDecimal(
+            staked.tokenId,
+            pool.stakingTokenDecimals,
+            pool.rewardTokenDecimals
+        );
+        if (pool.isSharedPool) {
+            uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) +
+                1; //starting from next period
+            uint256 periodNow = getPeriodNumber(_poolId, block.timestamp); // current period
+
+            //reward tokens distributed based on total reward tokens and amount staked
+            uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
+                _poolId,
+                periodStarted
+            );
+            uint256 totalInRewardAmount;
+            for (uint256 i = periodStarted; i < periodNow; i++) {
+                totalStakeAmount += stakePoolHelper[_poolId][i];
+                totalInRewardAmount = convertAmountToDecimal(
+                    totalStakeAmount,
+                    pool.stakingTokenDecimals,
+                    pool.rewardTokenDecimals
+                );
+                earned =
+                    earned +
+                    (_coinAmountInRewardDecimals * pool.rewardTokenAmount) /
+                    (totalInRewardAmount);
+            }
+            // update vault
+            vaults[account][_poolId] = Stake({
+                poolId: _poolId,
+                tokenId: staked.tokenId,
+                timestamp: periodNow * pool.poolPeriod + pool.startDate - 1,
+                owner: account
+            });
+        } else {
+            //reward tokens distributed based on bonus percentage and amount staked
+            uint256 _periodStaked;
+            {
+                if (block.timestamp < pool.endDate)
+                    _periodStaked =
+                        (block.timestamp - staked.timestamp) /
+                        pool.poolPeriod;
+                else
+                    _periodStaked =
+                        (pool.endDate - staked.timestamp) /
+                        pool.poolPeriod;
+            }
+            earned =
+                _coinAmountInRewardDecimals *
                 pool.bonusPercentageNumerator *
                 _periodStaked;
             earned = earned / pool.bonusPercentageDenominator;
@@ -673,7 +1151,10 @@ contract StakingContract is
         uint256 tokenId;
         StakingPool memory pool = stakingPools[_poolId];
         // require(pool.isActive, "This pool is not active"); // adding this check will prevent users from unstaking after the pool is set inactive
-        require(pool.isNFT, "This function is for NFT stake only");
+        require(
+            pool.poolType == PoolType.NFT,
+            "This function is for NFT stake only"
+        );
         require(
             block.timestamp >= pool.startDate,
             "Unstaking is not allowed before the staking period starts"
@@ -681,10 +1162,16 @@ contract StakingContract is
         // update total staked tokens in the pool
         // stakingPools[_poolId].totalStaked -= tokenIds.length;
         // update user's staked balance
-        reservedRewardsForStakePool[_poolId] -= _earningInfoNFT(_poolId, tokenIds, pool.endDate);
+        reservedRewardsForStakePool[_poolId] -= _earningInfoNFT(
+            _poolId,
+            tokenIds,
+            pool.endDate
+        );
         stakedBalances[account][_poolId] -= tokenIds.length;
-        
-        stakePoolHelper[_poolId][getPeriodNumber(_poolId, block.timestamp)+1] -= tokenIds.length;
+
+        stakePoolHelper[_poolId][
+            getPeriodNumber(_poolId, block.timestamp) + 1
+        ] -= tokenIds.length;
 
         for (uint i = 0; i < tokenIds.length; i++) {
             tokenId = tokenIds[i];
@@ -701,7 +1188,6 @@ contract StakingContract is
             );
             emit NFTUnstaked(account, _poolId, tokenId);
         }
-        
     }
 
     /**
@@ -719,7 +1205,10 @@ contract StakingContract is
     ) internal {
         StakingPool memory pool = stakingPools[_poolId];
         // require(pool.isActive, "This pool is not active"); // adding this check will prevent users from claiming rewards after the pool is set inactive
-        require(pool.isNFT, "This function is for NFT stake only");
+        require(
+            pool.poolType == PoolType.NFT,
+            "This function is for NFT stake only"
+        );
         require(
             block.timestamp >= pool.startDate,
             "Claiming is not allowed before the staking period starts"
@@ -739,7 +1228,10 @@ contract StakingContract is
                     staked.timestamp
                 ) + 1;
                 uint256 periodNow = getPeriodNumber(_poolId, block.timestamp);
-                uint256 totalStakeAmount = _getTotalPreviousStakedAmount(_poolId, periodStarted);
+                uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
+                    _poolId,
+                    periodStarted
+                );
                 for (uint256 _i = periodStarted; _i < periodNow; _i++) {
                     totalStakeAmount += stakePoolHelper[_poolId][_i];
                     earned = earned + pool.rewardTokenAmount / totalStakeAmount;
@@ -780,7 +1272,7 @@ contract StakingContract is
         uint256 unstakingFee = 0;
 
         reservedRewardsForStakePool[_poolId] -= earned;
-        
+
         if (_unstake) {
             // calculate penalty
             if (pool.endDate < block.timestamp) {
@@ -792,7 +1284,7 @@ contract StakingContract is
             unstakingFee =
                 (earned * unstakingFeePercentageNumerator) /
                 unstakingFeePercentageDenominator;
-            
+
             pool.rewardToken.transfer(owner(), unstakingFee);
             poolInfo[_poolId].totalUnstakeFee += unstakingFee;
             // tokenWithdrawBalances[address(pool.rewardToken)] += unstakingFee;
@@ -815,6 +1307,105 @@ contract StakingContract is
             _unstakeNFT(_poolId, account, tokenIds);
         }
         emit RewardClaimed(account, _poolId, earned);
+    }
+
+    /**
+     * @dev set staking fee percentage, can only be called by the owner.
+     * @param _stakingFeePercentageN Staking fee percentage nominator
+     * @param _stakingFeePercentageD Staking fee percentage dominator
+     */
+    function setStakingFeePercentage(
+        uint256 _stakingFeePercentageN,
+        uint256 _stakingFeePercentageD
+    ) external onlyOwner {
+        require(
+            _stakingFeePercentageN < _stakingFeePercentageD,
+            "Invalid staking fee percentage"
+        );
+        stakingFeePercentageNumerator = _stakingFeePercentageN;
+        stakingFeePercentageDenominator = _stakingFeePercentageD;
+    }
+
+    /**
+     * @dev set unstaking fee percentage, can only be called by the owner.
+     * @param _unstakingFeePercentageN Unstaking fee percentage nominator
+     * @param _unstakingFeePercentageD Unstaking fee percentage dominator
+     */
+    function setUnstakingFeePercentage(
+        uint256 _unstakingFeePercentageN,
+        uint256 _unstakingFeePercentageD
+    ) external onlyOwner {
+        require(
+            _unstakingFeePercentageN < _unstakingFeePercentageD,
+            "Invalid unstaking fee percentage"
+        );
+        unstakingFeePercentageNumerator = _unstakingFeePercentageN;
+        unstakingFeePercentageDenominator = _unstakingFeePercentageD;
+    }
+
+    /**
+     * @dev Changes pool status, can only be called by the creator of the pool.
+     * @param _poolId pool id
+     * @param status true for active and false for inactive
+     */
+    function setPoolStatus(uint256 _poolId, bool status) external nonReentrant {
+        StakingPool storage pool = stakingPools[_poolId];
+        require(
+            pool.creator == msg.sender,
+            "Only creator can change pool status"
+        );
+        require(pool.isActive != status, "Pool is already in the same state");
+        pool.isActive = status;
+        emit PoolStatusChanged(_poolId, status);
+    }
+
+    /**
+     * @dev withdraws reward tokens from contract, can only be called by the creator of the pool.
+     * @param _poolId pool id
+     */
+    function WithdrawRWDcreator(uint256 _poolId) external nonReentrant {
+        StakingPool memory pool = stakingPools[_poolId];
+        require(pool.creator == msg.sender, "Only creator can withdraw");
+        require(
+            pool.isActive == false || pool.endDate < block.timestamp,
+            "Pool is active or not ended yet"
+        );
+        pool.rewardToken.transfer(
+            msg.sender,
+            pool.rewardTokenAmount - reservedRewardsForStakePool[_poolId]
+        );
+        stakingPools[_poolId].rewardTokenAmount = reservedRewardsForStakePool[
+            _poolId
+        ];
+    }
+
+    /**
+     * @dev Withdraws ETH from contract, can only be called by the owner.
+     */
+    function withdraw() external onlyOwner nonReentrant {
+        payable(msg.sender).transfer(address(this).balance);
+    }
+
+    /**
+     * @dev pause and unpause contract, can only be called by the owner.
+     * @param state true for pause and false for unpause
+     */
+    function changeContractState(bool state) external onlyOwner {
+        if (state == true) _pause();
+        else _unpause();
+    }
+
+    /**
+     * @dev function to receive ERC721 tokens, when safeTransferFrom is called on ERC721 contract
+     */
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        return
+            IERC721Receiver.onERC721Received.selector ^ this.stakeNFT.selector;
     }
 
     /**
@@ -872,9 +1463,10 @@ contract StakingContract is
     function earningInfoNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds
-    ) external view returns (uint256){
+    ) external view returns (uint256) {
         return _earningInfoNFT(_poolId, tokenIds, block.timestamp);
     }
+
     function _earningInfoNFT(
         uint256 _poolId,
         uint256[] calldata tokenIds,
@@ -883,7 +1475,7 @@ contract StakingContract is
         uint256 tokenId;
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
-        if (pool.isNFT == false) return earned;
+        if (pool.poolType != PoolType.NFT) return earned;
 
         for (uint i = 0; i < tokenIds.length; i++) {
             tokenId = tokenIds[i];
@@ -896,7 +1488,10 @@ contract StakingContract is
                     staked.timestamp
                 ) + 1;
                 uint256 periodNow = getPeriodNumber(_poolId, _time);
-                uint256 totalStakeAmount = _getTotalPreviousStakedAmount(_poolId, periodStarted);
+                uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
+                    _poolId,
+                    periodStarted
+                );
                 for (uint256 _i = periodStarted; _i < periodNow; _i++) {
                     totalStakeAmount += stakePoolHelper[_poolId][_i];
                     earned = earned + pool.rewardTokenAmount / totalStakeAmount;
@@ -922,6 +1517,7 @@ contract StakingContract is
         }
         return earned;
     }
+
     /**
      * @dev Function to get user's reward info for staked tokens
      * @param _poolId pool id
@@ -930,9 +1526,10 @@ contract StakingContract is
     function earningInfoToken(
         uint256 _poolId,
         address account
-    ) public view returns (uint256){
+    ) public view returns (uint256) {
         return _earningInfoToken(_poolId, account, block.timestamp);
     }
+
     function _earningInfoToken(
         uint256 _poolId,
         address account,
@@ -940,7 +1537,7 @@ contract StakingContract is
     ) public view returns (uint256) {
         uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
-        if (pool.isNFT == true) return earned;
+        if (pool.poolType != PoolType.TOKEN) return earned;
         Stake memory staked = vaults[account][_poolId];
         if (staked.timestamp > pool.endDate) return earned; // already claimed
         uint256 _tokenAmountInRewardDecimals = convertAmountToDecimal(
@@ -954,7 +1551,10 @@ contract StakingContract is
         // Calculate earned reward tokens
         if (pool.isSharedPool) {
             //reward tokens distributed based on total reward tokens and amount staked
-            uint256 totalStakeAmount = _getTotalPreviousStakedAmount(_poolId, periodStarted);
+            uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
+                _poolId,
+                periodStarted
+            );
             uint256 totalInRewardAmount;
             for (uint256 i = periodStarted; i < periodNow; i++) {
                 totalStakeAmount += stakePoolHelper[_poolId][i];
@@ -991,114 +1591,97 @@ contract StakingContract is
     }
 
     /**
-     * @dev Changes pool status, can only be called by the creator of the pool.
+     * @dev Function to get user's reward info for staked tokens
      * @param _poolId pool id
-     * @param status true for active and false for inactive
+     * @param account address of the user
      */
-    function setPoolStatus(uint256 _poolId, bool status) external nonReentrant {
-        StakingPool storage pool = stakingPools[_poolId];
-        require(
-            pool.creator == msg.sender,
-            "Only creator can change pool status"
-        );
-        require(pool.isActive != status, "Pool is already in the same state");
-        pool.isActive = status;
-        emit PoolStatusChanged(_poolId, status);
+    function earningInfoCoin(
+        uint256 _poolId,
+        address account
+    ) public view returns (uint256) {
+        return _earningInfoCoin(_poolId, account, block.timestamp);
     }
 
-    /**
-     * @dev withdraws reward tokens from contract, can only be called by the creator of the pool.
-     * @param _poolId pool id
-     */
-    function WithdrawRWDcreator(uint256 _poolId) external nonReentrant {
+    function _earningInfoCoin(
+        uint256 _poolId,
+        address account,
+        uint256 _time
+    ) public view returns (uint256) {
+        uint256 earned = 0;
         StakingPool memory pool = stakingPools[_poolId];
-        require(pool.creator == msg.sender, "Only creator can withdraw");
-        require(
-            pool.isActive == false || pool.endDate < block.timestamp,
-            "Pool is active or not ended yet"
+        if (pool.poolType != PoolType.COIN) return earned;
+        Stake memory staked = vaults[account][_poolId];
+        if (staked.timestamp > pool.endDate) return earned; // already claimed
+        uint256 _coinAmountInRewardDecimals = convertAmountToDecimal(
+            staked.tokenId,
+            pool.stakingTokenDecimals,
+            pool.rewardTokenDecimals
         );
-        pool.rewardToken.transfer(msg.sender, pool.rewardTokenAmount - reservedRewardsForStakePool[_poolId]);
-        stakingPools[_poolId].rewardTokenAmount = reservedRewardsForStakePool[_poolId];
+        uint256 periodStarted = getPeriodNumber(_poolId, staked.timestamp) + 1;
+        uint256 periodNow = getPeriodNumber(_poolId, _time);
+
+        // Calculate earned reward tokens
+        if (pool.isSharedPool) {
+            //reward tokens distributed based on total reward tokens and amount staked
+            uint256 totalStakeAmount = _getTotalPreviousStakedAmount(
+                _poolId,
+                periodStarted
+            );
+            uint256 totalInRewardAmount;
+            for (uint256 i = periodStarted; i < periodNow; i++) {
+                totalStakeAmount += stakePoolHelper[_poolId][i];
+                totalInRewardAmount = convertAmountToDecimal(
+                    totalStakeAmount,
+                    pool.stakingTokenDecimals,
+                    pool.rewardTokenDecimals
+                );
+                earned =
+                    earned +
+                    (_coinAmountInRewardDecimals * pool.rewardTokenAmount) /
+                    (totalInRewardAmount);
+            }
+        } else {
+            //reward tokens distributed based on bonus percentage and amount staked
+            uint256 _periodStaked;
+            {
+                if (_time < pool.endDate)
+                    _periodStaked =
+                        (_time - staked.timestamp) /
+                        pool.poolPeriod;
+                else
+                    _periodStaked =
+                        (pool.endDate - staked.timestamp) /
+                        pool.poolPeriod;
+            }
+            earned =
+                _coinAmountInRewardDecimals *
+                pool.bonusPercentageNumerator *
+                _periodStaked;
+            earned = earned / pool.bonusPercentageDenominator;
+        }
+        return earned;
     }
-    function getWithdrawRWDcreator(uint256 _poolId) external view returns (uint256) {
+
+    function _getTotalPreviousStakedAmount(
+        uint256 _poolId,
+        uint256 _currentPreiod
+    ) internal view returns (uint256) {
+        uint256 _previousPeriod = _currentPreiod - 1;
+        if (_previousPeriod == 0) return 0;
+        uint256 _totalPreviousStakedAmount = 0;
+        for (uint256 i = _previousPeriod; i > 0; i--) {
+            if (stakePoolHelper[_poolId][i] > 0) {
+                _totalPreviousStakedAmount += stakePoolHelper[_poolId][i];
+            }
+        }
+        return _totalPreviousStakedAmount;
+    }
+
+    function getWithdrawRWDcreator(
+        uint256 _poolId
+    ) external view returns (uint256) {
         StakingPool memory pool = stakingPools[_poolId];
         return pool.rewardTokenAmount - reservedRewardsForStakePool[_poolId];
-    }
-
-    // /**
-    //  * @dev Withdraws ERC20 tokens from contract, can only be called by the owner.
-    //  * can be used to withdraw staking and reward tokens
-    //  * amount of token to withdraw is tracked in tokenWithdrawBalances mapping
-    //  * @param token address of token to withdraw
-    //  */
-    // function withdrawToken(address token) external onlyOwner nonReentrant {
-    //     uint256 amount = tokenWithdrawBalances[token];
-    //     require(amount > 0, "No token to withdraw");
-    //     IERC20(token).transfer(msg.sender, amount);
-    //     tokenWithdrawBalances[token] = 0;
-    // }
-
-    /**
-     * @dev Withdraws ETH from contract, can only be called by the owner.
-     */
-    function withdraw() external onlyOwner nonReentrant {
-        payable(msg.sender).transfer(address(this).balance);
-    }
-
-    /**
-     * @dev pause and unpause contract, can only be called by the owner.
-     * @param state true for pause and false for unpause
-     */
-    function changeContractState(bool state) external onlyOwner {
-        if (state == true) _pause();
-        else _unpause();
-    }
-
-    /**
-     * @dev function to receive ERC721 tokens, when safeTransferFrom is called on ERC721 contract
-     */
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
-        return
-            IERC721Receiver.onERC721Received.selector ^ this.stakeNFT.selector;
-    }
-
-    /**
-     * @dev set staking fee percentage, can only be called by the owner.
-     * @param _stakingFeePercentageN Staking fee percentage nominator
-     * @param _stakingFeePercentageD Staking fee percentage dominator
-     */
-    function setStakingFeePercentage(
-        uint256 _stakingFeePercentageN,
-        uint256 _stakingFeePercentageD
-    ) external onlyOwner {
-        require(
-            _stakingFeePercentageN < _stakingFeePercentageD,
-            "Invalid staking fee percentage"
-        );
-        stakingFeePercentageNumerator = _stakingFeePercentageN;
-        stakingFeePercentageDenominator = _stakingFeePercentageD;
-    }
-
-    /**
-     * @dev set unstaking fee percentage, can only be called by the owner.
-     * @param _unstakingFeePercentageN Unstaking fee percentage nominator
-     * @param _unstakingFeePercentageD Unstaking fee percentage dominator
-     */
-    function setUnstakingFeePercentage(
-        uint256 _unstakingFeePercentageN,
-        uint256 _unstakingFeePercentageD
-    ) external onlyOwner {
-        require(
-            _unstakingFeePercentageN < _unstakingFeePercentageD,
-            "Invalid unstaking fee percentage"
-        );
-        unstakingFeePercentageNumerator = _unstakingFeePercentageN;
-        unstakingFeePercentageDenominator = _unstakingFeePercentageD;
     }
 
     function getStakingFeePercentage()
@@ -1126,5 +1709,39 @@ contract StakingContract is
 
     function getPoolCreationFee() external view returns (uint256) {
         return poolCreationFee;
+    }
+
+    function getPeriodNumber(
+        uint256 _poolId,
+        uint256 _currentTime
+    ) public view returns (uint256) {
+        StakingPool memory pool = stakingPools[_poolId];
+        if (_currentTime < pool.startDate) return 0;
+        if (_currentTime > pool.endDate) {
+            _currentTime = pool.endDate;
+        }
+        return (_currentTime - pool.startDate) / pool.poolPeriod;
+    }
+
+    function getRequiredRewardTokenAmount(
+        uint256 _startDate,
+        uint256 _endDate,
+        uint256 _maxTotalStake,
+        uint256 bonusPercentageN,
+        uint256 bonusPercentageD,
+        uint256 poolPeriod,
+        uint256 stakingTokenDecimals,
+        uint256 rewardTokenDecimals
+    ) public pure returns (uint256) {
+        uint256 totalRewardAmount = ((_endDate - _startDate) *
+            bonusPercentageN *
+            _maxTotalStake) / (bonusPercentageD * poolPeriod);
+
+        return
+            convertAmountToDecimal(
+                totalRewardAmount,
+                stakingTokenDecimals,
+                rewardTokenDecimals
+            );
     }
 }
