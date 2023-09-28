@@ -168,12 +168,7 @@ contract StakingContract is
         }
         poolCount++;
         uint256 poolId = poolCount;
-        /*
-        PoolType poolType;        
-        bool isActive;
-        bool isCoinReward;
-        bool isSharedPool;
-        */
+
         stakingPools[poolId] = StakingPool(
             _stakingAddress,
             rewardToken,
@@ -914,10 +909,11 @@ contract StakingContract is
             pool.isActive == false || pool.endDate < block.timestamp,
             "Pool is active or not ended yet"
         );
-        pool.rewardToken.transfer(
-            msg.sender,
-            pool.rewardTokenAmount - reservedRewardsForStakePool[_poolId]
-        );
+        uint256 _amount = pool.rewardTokenAmount - reservedRewardsForStakePool[_poolId];
+
+        if(pool.isCoinReward) payable(pool.creator).transfer(_amount);
+        else pool.rewardToken.transfer(pool.creator, _amount);
+
         stakingPools[_poolId].rewardTokenAmount = reservedRewardsForStakePool[
             _poolId
         ];
@@ -926,8 +922,8 @@ contract StakingContract is
     /**
      * @dev Withdraws ETH from contract, can only be called by the owner.
      */
-    function withdraw() external onlyOwner nonReentrant {
-        payable(msg.sender).transfer(address(this).balance);
+    function withdraw() external onlyOwner {
+        payable(msg.sender).transfer(ownerFee);
     }
 
     /**
